@@ -1,14 +1,6 @@
 #!/sbin/openrc-run
-### BEGIN INIT INFO
-# Provides:          dbus
-# Required-Start:
-# Required-Stop:
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Blue Mess native OpenRC dbus service
-### END INIT INFO
-# LSB metadata preserves Debian package helper compatibility. Native OpenRC
-# ordering is specified by depend() below.
+# Native OpenRC service. Debian LSB compatibility metadata is kept separately
+# in /etc/insserv/overrides so lsb2rcconf cannot misclassify this script.
 description="System D-Bus"
 command=/usr/bin/dbus-daemon
 command_args="--system --nofork --nopidfile"

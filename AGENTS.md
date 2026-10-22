@@ -5,6 +5,7 @@
 - Install only from the pinned Sid snapshot, with signature verification and no recommends/suggests. Refresh build/inputs.env deliberately and repeat the full VM suite.
 - Never test destructive installer operations on host disks. Use only vm/verify.py-created disposable QEMU disks; installation runs without a network device.
 - Do not claim ISO boot, installation, desktop or RAM success without an actual run. Failed candidates are not validated downloads. Never change memory metric or disable normal services during measurement.
+- Debian native openrc-run services must not contain LSB INIT INFO headers: Debian dispatches those through its compatibility path. Put insserv metadata in /etc/insserv/overrides.
 - Preserve package maintainer service-management behavior; each daemon has one startup owner. Do not add permanent CI hooks, accounts or credentials to target payload.
 - Build/test: source build/inputs.env; docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile .
 - Static tests: docker run --rm -v "$PWD:/src" bme-builder build/check.sh

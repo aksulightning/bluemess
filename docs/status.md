@@ -75,7 +75,7 @@
   rejection of its own USB disk. The real CLI installer then completed onto a
   disposable disk with guest networking disabled.
 - The installed disk booted without the ISO under native openrc-init. All
-  expected OpenRC services, serial ash/sudo login, exact fresh-home layout,
+  expected OpenRC service state markers, serial ash/sudo login, exact fresh-home layout,
   UUID mounts, DHCP/DNS, persistent APT policy, actual package install/removal
   and an init-preserving upgrade simulation passed.
 - Desktop validation stopped at the tty1 login assertion, before Xorg started;
@@ -84,3 +84,22 @@
 - Removing GRUB's unneeded HFS+/APM hybrid layout preserves EFI/GPT boot while
   avoiding extra filesystem probes. Earlier USB media write-error attribution
   to HFS+ is an inference; the rebuilt USB path must be tested again.
+
+## Actual daemon/process verification
+
+- Run 39804306807 repeated USB boot, offline installation and disk-only boot
+  successfully with the simplified EFI/GPT layout. Real tty1 password login
+  produced the expected tester-owned BusyBox ash process.
+- The stronger logind assertion failed: process diagnostics showed dbus-daemon,
+  elogind, chronyd and udevd absent despite their OpenRC state markers reporting
+  started. The earlier state-only checks do not establish those daemons worked.
+- Added actual executable/process and single-supervisor assertions plus a system
+  D-Bus method call, and retained PAM/boot/system log diagnostics. Investigating
+  the startup-state mismatch before any desktop or memory acceptance claim.
+
+- Root cause confirmed in Debian's patched openrc-run: inline LSB headers route
+  native services through a compatibility branch that skips their default
+  daemon start functions. Moved those headers to insserv override files; native
+  scripts now classify correctly. The build checks the actual Debian parser,
+  Debian helper checksums, active elogind PAM configuration, and clean volatile
+  directories before creating either root filesystem.

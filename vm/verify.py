@@ -237,6 +237,17 @@ readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 rc-status --all
 for service in bme-root udev bme-localmount bme-boot bme-network bme-syslog bme-klog dbus elogind chrony bme-getty.tty1 bme-getty.tty2 bme-getty.ttyS0; do rc-service "$service" status; done
+# State markers alone are insufficient: assert the actual daemon processes.
+ps -eo pid,ppid,user,args
+for daemon in dbus-daemon elogind chronyd; do
+    pids=$(pgrep -x "$daemon") || { echo "Missing running daemon: $daemon" >&2; exit 1; }
+    for pid in $pids; do readlink /proc/"$pid"/exe; done
+done
+pgrep -x systemd-udevd || pgrep -x udevd
+dbus-send --system --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames
+for service in dbus elogind chrony; do
+    test "$(pgrep -fc "^supervise-daemon $service --start ")" -eq 1
+done
 findmnt -n -o FSTYPE /
 test "$(findmnt -n -o FSTYPE /)" = ext4
 test "$(findmnt -n -o FSTYPE /boot/efi)" = vfat
@@ -284,6 +295,12 @@ loginctl list-sessions --no-legend
 for session in $(loginctl list-sessions --no-legend | awk '{print $1}'); do
     loginctl show-session "$session" -p Name -p TTY -p Active -p State -p Remote -p Service -p Class -p Seat
 done
+printf '%s\\n' '--- PAM session configuration ---'
+cat /etc/pam.d/common-session
+printf '%s\\n' '--- OpenRC boot log ---'
+tail -n 120 /var/log/rc.log
+printf '%s\\n' '--- system messages ---'
+tail -n 120 /var/log/messages
 printf '%s\\n' '--- all processes ---'
 ps -eo pid,ppid,user,tty,stat,args
 ''', timeout=30, check=False)

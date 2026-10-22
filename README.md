@@ -4,9 +4,9 @@ A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
 standalone Openbox, and xterm. Console login, then `startx`. No display manager,
 panel, compositor, indexing service, or automatic desktop application startup.
 
-**Development status:** first implementation; no validated ISO or memory result
-has been produced yet. Consult [the status record](docs/status.md) and the actual
-Actions run before using an image. The 150 MiB desktop idle budget is an
+**Development status:** first implementation. A specific image is validated only
+when its Actions run passes all required checks. Consult
+[the status record](docs/status.md) and that run before using an image. The 150 MiB desktop idle budget is an
 acceptance target, not a measured claim or minimum physical RAM requirement.
 
 ## Download and verify

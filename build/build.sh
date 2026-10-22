@@ -19,7 +19,7 @@ cp work/sources.list out/repositories.list
 bash packages/build.sh "$PWD/work/debs" "$VERSION"
 
 bootstrap() {
-    local role=$1 root="$PWD/work/$1" include
+    local role=$1 root="$PWD/work/$1" include lsb_output
     [[ ! -e $root ]] || { echo "Refusing reused root: $root" >&2; exit 1; }
     include=$(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' "manifests/$role.txt" | paste -sd,)
     mmdebstrap --mode=root --variant=minbase --architectures="$ARCH" \
@@ -43,6 +43,18 @@ bootstrap() {
     chroot "$root" dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' > "out/$role-packages.tsv"
     chroot "$root" dpkg --audit | tee "out/logs/$role-dpkg-audit.log"
     [[ ! -s out/logs/$role-dpkg-audit.log ]]
+    # mmdebstrap's temporary build helpers must be restored byte-for-byte.
+    chroot "$root" dpkg --verify dpkg init-system-helpers > "out/logs/$role-helper-verify.log"
+    [[ ! -s out/logs/$role-helper-verify.log ]]
+    grep -Eq '^[[:space:]]*session[[:space:]]+optional[[:space:]]+pam_elogind[.]so([[:space:]]|$)' "$root/etc/pam.d/common-session"
+    # Debian's LSB adapter would bypass native service command definitions if
+    # an INIT INFO header accidentally appears in these openrc-run scripts.
+    for service in dbus elogind chrony udev; do
+        lsb_output=$(chroot "$root" /usr/lib/rc/bin/lsb2rcconf "/etc/init.d/$service")
+        [[ -z $lsb_output ]] || {
+            echo "Native service misclassified as LSB: $service" >&2; exit 1;
+        }
+    done
     [[ $(readlink "$root/bin/sh") == dash ]]
     [[ -x $root/usr/sbin/openrc-init && -x $root/bin/bash ]]
     for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done
@@ -56,6 +68,20 @@ bootstrap() {
     rm -f "$root/var/lib/dbus/machine-id" "$root/var/lib/urandom/random-seed" "$root/var/lib/misc/random-seed" "$root/var/lib/blue-mess/random-seed"
     find "$root/var/log" -type f -exec truncate -s0 {} +
     chroot "$root" apt-get clean
+    # Image construction must not preserve pidfiles, sockets, service markers,
+    # temporary accounts' session state or package-build runtime data. /var/run
+    # is an absolute symlink to /run, so only clean the actual directories.
+    for volatile in run tmp var/tmp; do
+        [[ ! -L $root/$volatile ]] || { echo "Unexpected volatile symlink: $volatile" >&2; exit 1; }
+        mkdir -p "$root/$volatile"
+        if mountpoint -q "$root/$volatile"; then
+            echo "Refusing cleanup of mounted build directory: $volatile" >&2; exit 1
+        fi
+        find "$root/$volatile" -xdev -mindepth 1 -delete
+    done
+    chmod 0755 "$root/run"
+    chmod 1777 "$root/tmp" "$root/var/tmp"
+    [[ ! -e $root/run/openrc && ! -e $root/run/dbus ]]
     # DHCP populates resolver state on the installed machine.
     rm -f "$root/etc/resolv.conf"
     : > "$root/etc/resolv.conf"
