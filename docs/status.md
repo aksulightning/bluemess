@@ -68,3 +68,19 @@
   helpers, including the root-owned X11/ICE socket directories required by
   ordinary-user Xorg. Installer refreshes cached console keyboard settings
   before generating the target initramfs.
+
+## Installation and disk-only boot verified
+
+- Run 39802020950 built the corrected candidate, booted it as USB, and verified
+  rejection of its own USB disk. The real CLI installer then completed onto a
+  disposable disk with guest networking disabled.
+- The installed disk booted without the ISO under native openrc-init. All
+  expected OpenRC services, serial ash/sudo login, exact fresh-home layout,
+  UUID mounts, DHCP/DNS, persistent APT policy, actual package install/removal
+  and an init-preserving upgrade simulation passed.
+- Desktop validation stopped at the tty1 login assertion, before Xorg started;
+  no desktop or memory result was measured. Adding native utmp initialization
+  and direct session/process diagnostics instead of relying solely on who.
+- Removing GRUB's unneeded HFS+/APM hybrid layout preserves EFI/GPT boot while
+  avoiding extra filesystem probes. Earlier USB media write-error attribution
+  to HFS+ is an inference; the rebuilt USB path must be tested again.

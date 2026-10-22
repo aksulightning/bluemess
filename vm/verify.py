@@ -32,6 +32,10 @@ CONFIG = {'architecture': 'amd64', 'ram_MiB': 1024, 'vcpus': 2,
           'threshold_MiB': 150}
 
 
+def phase(message):
+    print(f'[{time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}] {message}', flush=True)
+
+
 class Failure(RuntimeError):
     pass
 
@@ -81,8 +85,10 @@ class QMP:
             code = punctuation.get(char, char)
             if not (char.isascii() and (char.islower() or char.isdigit() or char in punctuation)):
                 raise Failure('Unsupported QMP keyboard input')
-            self.command('send-key', {'keys': [{'type': 'qcode', 'data': code}], 'hold-time': 30})
-            time.sleep(.05)
+            self.command('send-key', {'keys': [{'type': 'qcode', 'data': code}], 'hold-time': 80})
+            # TCG may process emulated keyboard interrupts later than QMP replies.
+            # Leave a full key-release interval before sending the next character.
+            time.sleep(.16)
 
     def close(self):
         self.stream.close()
@@ -90,11 +96,12 @@ class QMP:
 
 
 class Guest:
-    def __init__(self, args, work, phase, disk, variables, network, iso=None, usb_media=False):
+    def __init__(self, args, work, phase_name, disk, variables, network, iso=None, usb_media=False):
+        phase(f'Launch {phase_name}: UEFI/TCG, networking={network}, USB media={usb_media}')
         self.buffer = ''
         self.redactions = []
-        self.log = (work.parent / f'{phase}-serial.log').open('w', encoding='utf-8')
-        qmp_path = work / f'{phase}.qmp'
+        self.log = (work.parent / f'{phase_name}-serial.log').open('w', encoding='utf-8')
+        qmp_path = work / f'{phase_name}.qmp'
         qmp_path.unlink(missing_ok=True)
         command = ['qemu-system-x86_64', '-machine', CONFIG['machine'] + ',accel=tcg',
                    '-cpu', CONFIG['cpu'], '-smp', str(CONFIG['vcpus']), '-m', '1024',
@@ -111,7 +118,7 @@ class Guest:
                         '-device', 'usb-storage,drive=installmedia,bootindex=1']
         elif iso:
             command += ['-drive', f'file={iso},format=raw,media=cdrom,readonly=on']
-        (work.parent / f'{phase}-qemu.json').write_text(json.dumps(command, indent=2) + '\n')
+        (work.parent / f'{phase_name}-qemu.json').write_text(json.dumps(command, indent=2) + '\n')
         master, slave = pty.openpty()
         self.fd = master
         self.process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, close_fds=True)
@@ -151,6 +158,7 @@ class Guest:
                 self.buffer += text
 
     def login(self, user, password):
+        phase(f'Authenticate serial console as {user}')
         _, boot_match = self.until(r'(?:^|\n)[^\n]*login:\s*|Kernel panic[^\n]*|ERROR: (?:bme-boot failed to start|cannot start bme-getty[^\n]*)', 900)
         if 'login:' not in boot_match.group(0):
             raise Failure('Guest boot failed before console login: ' + boot_match.group(0))
@@ -165,6 +173,7 @@ class Guest:
             raise Failure('Authenticated login did not enter BusyBox ash: ' + output)
 
     def root(self, password):
+        phase('Authenticate administrative shell with sudo')
         marker = 'BME_SUDO_' + secrets.token_hex(8)
         self.send(f"sudo -S -p '{marker}:' /usr/bin/ash\n")
         self.until(re.escape(marker) + ':', 60)
@@ -186,10 +195,12 @@ class Guest:
         return output.strip('\n')
 
     def reboot(self):
+        phase('Request native OpenRC reboot')
         self.send('sync; openrc-shutdown --reboot now\n')
         # Next login() waits for a new real getty after the kernel boots again.
 
     def poweroff(self):
+        phase('Request native OpenRC poweroff')
         self.send('sync; openrc-shutdown --poweroff now\n')
         deadline = time.monotonic() + 180
         while self.process.poll() is None and time.monotonic() < deadline:
@@ -220,6 +231,7 @@ def record(output, name, text):
 
 
 def root_state(guest, output, suffix):
+    phase(f'{suffix}: assert native PID 1, service state and system configuration')
     facts = guest.run('''set -eu
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
@@ -245,6 +257,7 @@ getent shells 2>/dev/null || cat /etc/shells
 
 
 def network(guest, output, suffix):
+    phase(f'{suffix}: verify DHCP, route and DNS')
     facts = guest.run('''set -eu
 n=0; until ip -4 route show default | grep -q default; do n=$((n+1)); test "$n" -le 90; sleep 1; done
 ip -details address
@@ -255,13 +268,87 @@ getent ahostsv4 deb.debian.org
     record(output, f'network-{suffix}.log', facts)
 
 
+def console_state(guest, output, suffix, stage):
+    """Preserve actual console, process and logind state without relying on utmp."""
+    guest.qmp.command('screendump', {'filename': str(output / f'console-{suffix}-{stage}.ppm')})
+    facts = guest.run('''printf '%s\\n' '--- active VT ---'
+cat /sys/class/tty/tty0/active; fgconsole
+printf '%s\\n' '--- tty1 processes ---'
+ps -t tty1 -o pid,ppid,user,tty,stat,args
+printf '%s\\n' '--- tty1 settings ---'
+stty -F /dev/tty1 -a
+printf '%s\\n' '--- utmp (diagnostic only) ---'
+ls -l /run/utmp; who
+printf '%s\\n' '--- logind sessions ---'
+loginctl list-sessions --no-legend
+for session in $(loginctl list-sessions --no-legend | awk '{print $1}'); do
+    loginctl show-session "$session" -p Name -p TTY -p Active -p State -p Remote -p Service -p Class -p Seat
+done
+printf '%s\\n' '--- all processes ---'
+ps -eo pid,ppid,user,tty,stat,args
+''', timeout=30, check=False)
+    record(output, f'console-{suffix}-{stage}.log', facts)
+
+
 def desktop(guest, password, output, suffix):
+    phase(f'{suffix}: activate tty1 and capture console before keyboard login')
     guest.run('chvt 1')
-    guest.qmp.type('tester\n')
-    time.sleep(3)
-    guest.qmp.type(password + '\n')
-    time.sleep(3)
-    guest.run('''n=0; until who | grep -q 'tester.*tty1'; do n=$((n+1)); test "$n" -le 90 || exit 1; sleep 1; done''', timeout=120)
+    console_state(guest, output, suffix, 'before-login')
+    try:
+        guest.run('''set -eu
+test -c /dev/vcs1
+n=0
+until grep -aq 'login:' /dev/vcs1 && ps -t tty1 -o comm= | grep -Eq '^[[:space:]]*agetty$'; do
+    n=$((n+1)); test "$n" -le 60 || exit 1; sleep 1
+done
+''', timeout=90)
+        guest.qmp.type('tester\n')
+        # Read the real VT text before sending a secret. This confirms QMP input
+        # reached login and prevents typing a password at a username/shell prompt.
+        guest.run('''set -eu
+n=0
+until grep -aq 'Password:' /dev/vcs1 && ps -t tty1 -o comm= | grep -Eq '^[[:space:]]*login$'; do
+    n=$((n+1)); test "$n" -le 60 || exit 1; sleep 1
+done
+''', timeout=90)
+        phase(f'{suffix}: tty1 displays the real login password prompt')
+        guest.qmp.type(password + '\n')
+        # Successful password login must produce both a tester-owned ash on tty1
+        # and the active PAM/logind login session for that same user and VT.
+        # who is retained as evidence but cannot be the gate when utmp is absent.
+        tty_login = guest.run('''set -eu
+n=0
+while :; do
+    shell_ok=0
+    for pid in $(ps -t tty1 -o pid=,user= | awk '$2 == "tester" {print $1}'); do
+        case "$(readlink /proc/"$pid"/exe 2>/dev/null || :)" in */busybox)
+            if tr '\\000' ' ' < /proc/"$pid"/cmdline | grep -Eq '(^|/|-| )ash( |$)'; then shell_ok=1; fi;;
+        esac
+    done
+    session_ok=0
+    for session in $(loginctl list-sessions --no-legend | awk '$3 == "tester" {print $1}'); do
+        properties=$(loginctl show-session "$session" -p Name -p TTY -p Active -p Service -p Remote)
+        if printf '%s\\n' "$properties" | grep -qx 'Name=tester' &&
+           printf '%s\\n' "$properties" | grep -qx 'TTY=tty1' &&
+           printf '%s\\n' "$properties" | grep -qx 'Active=yes' &&
+           printf '%s\\n' "$properties" | grep -qx 'Service=login' &&
+           printf '%s\\n' "$properties" | grep -qx 'Remote=no'; then
+            session_ok=1
+            printf '%s\\n' "$properties"
+        fi
+    done
+    [ "$shell_ok" -eq 1 ] && [ "$session_ok" -eq 1 ] && break
+    n=$((n+1)); test "$n" -le 90 || exit 1; sleep 1
+done
+ps -t tty1 -o pid,ppid,user,tty,stat,args
+''', timeout=150)
+        record(output, f'tty1-authentication-{suffix}.log', tty_login)
+        console_state(guest, output, suffix, 'after-login')
+    except Exception:
+        with suppress(Exception):
+            console_state(guest, output, suffix, 'login-failed')
+        raise
+    phase(f'{suffix}: tty1 authenticated with ash and active logind session; start real Xorg/Openbox')
     guest.qmp.type('startx\n')
     guest.run('''n=0; until pgrep -u tester -x openbox >/dev/null; do n=$((n+1)); test "$n" -le 180 || { cat /home/tester/.local/share/xorg/Xorg.0.log; exit 1; }; sleep 1; done''', timeout=240)
     # Select the same resolution on the real guest VGA server on every boot.
@@ -289,10 +376,12 @@ cat /home/tester/.local/share/xorg/Xorg.0.log
 
 
 def memory(guest, output, boot):
+    phase(f'Memory boot {boot}: settle for {CONFIG["settle_seconds"]} seconds')
     # The only activity during settling is QEMU's ordinary delivered guest services.
     time.sleep(CONFIG['settle_seconds'])
     reading = record(output, f'meminfo-boot-{boot}.txt', guest.run('cat /proc/meminfo'))
     result = parse_meminfo(reading)
+    phase(f'Memory boot {boot}: {result["used_MiB"]} MiB, swap={result["SwapUsed_kib"]} KiB, accepted={result["accepted"]}')
     record(output, f'memory-diagnostics-boot-{boot}.log', guest.run('''printf '%s\\n' '--- services ---'; rc-status --all
 printf '%s\\n' '--- processes ---'; ps -eo pid,ppid,user,rss,vsz,args --sort=-rss
 printf '%s\\n' '--- kernel slab totals ---'; head -n 30 /proc/slabinfo
@@ -347,6 +436,7 @@ def main():
         guest = Guest(args, work, 'usb-installer', disk, nvram, network=False, iso=iso, usb_media=True)
         guest.redactions = [password]
         guest.login('root', 'bluemess')
+        phase('USB boot: verify offline payload and rejection of installation medium')
         usb_facts = guest.run('''set -eu
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 test -d /sys/firmware/efi
@@ -391,6 +481,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         result['checks'].append('ISO reaches native OpenRC CLI; no guest NIC during installation')
         # Terminal echo is disabled and only received output is logged.
         guest.run(f"umask 077; printf '%s\\n' {shlex.quote(password)} > /run/bme-test-password")
+        phase('Optical boot: run the actual offline installer on disposable /dev/vda')
         install = guest.run('bme-install --unattended --disk /dev/vda --acknowledge ERASE:/dev/vda --hostname bme-test --username tester --password-file /run/bme-test-password --locale en_US.UTF-8 --keyboard us --timezone Etc/UTC', timeout=1800, check=False)
         record(output, 'installer.log', install)
         record(output, 'installer-engine.log', guest.run('for path in /tmp/bme-install.*/install.log; do test ! -f "$path" || cat "$path"; done', check=False))
@@ -410,6 +501,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         guest.root(password)
         root_state(guest, output, 'installed')
         network(guest, output, 'installed')
+        phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
 for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
 apt-config dump | grep '^APT::Install-Recommends "false";'
@@ -428,11 +520,12 @@ apt-get check
 test -z "$(dpkg --audit)"
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 ''', timeout=1800))
-        desktop(guest, password, output, 'verification')
         result['checks'].append('Disk-only boot, authenticated ash/sudo, home layout, UUID filesystems, DHCP/DNS, APT policy, package install/remove and upgrade plan')
+        desktop(guest, password, output, 'verification')
         result['checks'].append('Ordinary-user rootless real VGA Xorg, Openbox and one xterm running ash')
         readings = []
         for boot in range(1, 4):
+            phase(f'Begin fresh installed-system benchmark boot {boot}/3')
             guest.reboot()
             guest.login('tester', password)
             guest.root(password)
@@ -454,7 +547,13 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
     except Exception as exc:
         result['error'] = str(exc)
         record(output, 'failure.log', traceback.format_exc())
-        print(str(exc), file=sys.stderr)
+        print(str(exc), file=sys.stderr, flush=True)
+        if guest is not None:
+            # QMP screenshot is independent of a working guest serial shell.
+            with suppress(Exception):
+                guest.qmp.command('screendump', {'filename': str(output / 'failure-console.ppm')})
+            with suppress(Exception):
+                console_state(guest, output, 'failure', 'final')
     finally:
         if guest is not None:
             with suppress(Exception):

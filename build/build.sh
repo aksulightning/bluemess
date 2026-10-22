@@ -56,6 +56,9 @@ bootstrap() {
     rm -f "$root/var/lib/dbus/machine-id" "$root/var/lib/urandom/random-seed" "$root/var/lib/misc/random-seed" "$root/var/lib/blue-mess/random-seed"
     find "$root/var/log" -type f -exec truncate -s0 {} +
     chroot "$root" apt-get clean
+    # DHCP populates resolver state on the installed machine.
+    rm -f "$root/etc/resolv.conf"
+    : > "$root/etc/resolv.conf"
     if [[ $role == target ]]; then
         # Construction stays pinned; installed machines deliberately track Sid.
         rm -f "$root/etc/apt/sources.list.d/"*.sources "$root/etc/apt/sources.list.d/"*.list
@@ -85,11 +88,12 @@ GRUB
 iso="blue-mess-edition-$VERSION-amd64.iso"
 # grub-mkrescue supplies an EFI El Torito image and hybrid GPT suitable for USB.
 grub-mkrescue --modules='part_gpt part_msdos fat iso9660 normal linux search search_fs_file serial' \
-  --product-name='Blue Mess Edition' -o "out/$iso" work/iso
+  --product-name='Blue Mess Edition' -o "out/$iso" work/iso -- -hfsplus off
 (cd out && sha256sum "$iso" > SHA256SUMS)
 xorriso -indev "out/$iso" -report_el_torito plain -report_system_area plain > out/logs/iso-layout.log 2>&1
 grep -q 'UEFI' out/logs/iso-layout.log
 grep -q 'GPT' out/logs/iso-layout.log
+if grep -Eq 'HFSPLUS|APM partition' out/logs/iso-layout.log; then echo 'Unexpected Apple hybrid partitions' >&2; exit 1; fi
 python3 - "$VERSION" "$DEBIAN_SNAPSHOT" <<'PY'
 import json, os, pathlib, sys
 pathlib.Path('out/build-metadata.json').write_text(json.dumps(dict(version=sys.argv[1],snapshot=sys.argv[2],architecture='amd64',source_commit=os.environ.get('SOURCE_COMMIT','unknown'),validated=False),indent=2)+'\n')

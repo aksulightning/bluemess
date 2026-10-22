@@ -13,6 +13,10 @@ start() {
     mount -o remount,rw / || return 1
     mkdir -p /var/log /var/lib/blue-mess /run/udev
     chmod 1777 /tmp
+    # agetty/login update an existing utmp file; /run is fresh on every boot.
+    touch /run/utmp || return 1
+    chown root:utmp /run/utmp || return 1
+    chmod 0664 /run/utmp || return 1
     eend 0
 }
 stop() {
