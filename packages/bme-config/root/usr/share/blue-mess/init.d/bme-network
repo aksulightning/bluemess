@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+description="One selected wired or Wi-Fi DHCP connection"
+command=/usr/share/blue-mess/bin/network
+supervisor=supervise-daemon
+pidfile=/run/bme-network.pid
+depend() { need bme-boot; before chrony; }
+stop_post() {
+    [ ! -f /run/bme-network.interface ] || {
+        iface=$(cat /run/bme-network.interface)
+        ip address flush dev "$iface"
+        ip link set dev "$iface" down
+    }
+    rm -f /run/bme-network.interface
+}

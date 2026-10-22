@@ -1,0 +1,7 @@
+#!/sbin/openrc-run
+description="BusyBox rotating system log"
+command=/usr/bin/busybox
+command_args="syslogd -n -O /var/log/messages -s 256 -b 2"
+supervisor=supervise-daemon
+pidfile=/run/bme-syslog.pid
+depend() { need bme-boot; }

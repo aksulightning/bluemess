@@ -1,0 +1,9 @@
+/out/
+/work/
+/cache/
+__pycache__/
+*.pyc
+*.iso
+*.qcow2
+*.raw
+*.deb

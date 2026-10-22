@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="Login and seat management"
+command=/usr/libexec/elogind/elogind
+supervisor=supervise-daemon
+pidfile=/run/bme-elogind.pid
+depend() { need dbus udev bme-boot; before bme-getty.tty1 bme-getty.ttyS0; }
+start_pre() {
+    [ -x "$command" ] || command=/usr/lib/elogind/elogind
+    [ -x "$command" ] || command=/usr/sbin/elogind
+    mkdir -p /run/elogind
+}

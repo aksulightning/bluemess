@@ -1,0 +1,8 @@
+#!/sbin/openrc-run
+description="System D-Bus"
+command=/usr/bin/dbus-daemon
+command_args="--system --nofork --nopidfile"
+supervisor=supervise-daemon
+pidfile=/run/bme-dbus.pid
+depend() { need bme-boot; before elogind; }
+start_pre() { mkdir -p /run/dbus; dbus-uuidgen --ensure=/etc/machine-id; }

@@ -1,0 +1,113 @@
+name: Build and verify installer ISO
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: iso-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: version
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" == tag ]]; then version=${REF_NAME#v}; else version=0.1.0-dev.${GITHUB_SHA:0:12}; fi
+          [[ "$version" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+~-]*$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build controlled Debian environment
+        run: |
+          mkdir -p out/logs
+          set -o pipefail
+          source build/inputs.env
+          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile . 2>&1 | tee out/logs/container.log
+          docker image inspect bme-builder > out/builder-image.json
+      - name: Validate sources under BusyBox ash
+        run: |
+          docker run --rm -v "$PWD:/src" bme-builder build/check.sh
+      - name: Build candidate ISO
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm --privileged -e VERSION -e SOURCE_COMMIT="$GITHUB_SHA" -v "$PWD:/src" bme-builder build/build.sh
+      - name: Offline install, installed boot, desktop and three-boot memory test
+        run: |
+          docker run --rm --privileged -v "$PWD:/src" bme-builder -c 'python3 vm/verify.py --iso out/blue-mess-edition-${{ steps.version.outputs.version }}-amd64.iso --output out/verification'
+      - name: Mark verified artifact
+        run: |
+          python3 build/validate-results.py out
+          cd out
+          sha256sum -c SHA256SUMS
+      - name: Upload validated download
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: blue-mess-edition-${{ steps.version.outputs.version }}-amd64-validated
+          path: |
+            out/*.iso
+            out/SHA256SUMS
+            out/*packages.tsv
+            out/build-*
+            out/builder-image.json
+            out/repositories.list
+            out/verification/*.json
+            out/verification/*.md
+            out/verification/*.txt
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Preserve diagnostics (candidate if failed)
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: blue-mess-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/logs/
+            out/verification/*.*
+            out/*metadata*
+            out/*packages.tsv
+          compression-level: 6
+          retention-days: 14
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: blue-mess-edition-${{ needs.build.outputs.version }}-amd64-validated
+          path: release
+      - name: Verify tested bytes and publish existing tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd release
+          sha256sum -c SHA256SUMS
+          # Require the push tag to exist; refuse an existing release (no clobber).
+          gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > /dev/null
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite assets' >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" --verify-tag --title "Blue Mess Edition $RELEASE_TAG" \
+            --notes 'UEFI amd64 installer. See bundled verification and memory reports. Verify SHA256SUMS before use.' \
+            ./*.iso ./SHA256SUMS ./*.tsv ./*.json ./*.txt ./*.list ./*.md
