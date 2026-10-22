@@ -43,3 +43,8 @@
 - Removed early-exiting grep checks from pipefail pipelines (SIGPIPE risk),
   and added an ERR trap with exact build line/command reporting for subsequent
   failures. This correction still requires the next real build to validate it.
+
+- Added ash defaults for both useradd and adduser, with guest assertions, so
+  accounts created after installation follow the distribution shell policy.
+- Corrected-build run: https://github.com/aksulightning/bluemess/actions/runs/39800208522
+  remained queued with zero job steps and no runner at the subsequent inspection.

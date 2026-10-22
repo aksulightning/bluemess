@@ -10,6 +10,10 @@ configure)
     done
     add-shell /usr/bin/ash
     usermod -s /usr/bin/ash root
+    useradd -D -s /usr/bin/ash
+    # Debian's two supported account-creation paths should agree.
+    sed -i '/^[#[:space:]]*DSHELL=/d' /etc/adduser.conf
+    printf '\nDSHELL=/usr/bin/ash\n' >> /etc/adduser.conf
     # Own all daemon entry points, including future package-maintainer actions.
     # Divert only vendor paths; our original scripts retain openrc-run.
     mkdir -p /usr/share/blue-mess/vendor-init /etc/init.d

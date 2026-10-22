@@ -232,6 +232,8 @@ test "$(readlink -f /bin/sh)" = /usr/bin/dash
 case "$(readlink -f /bin/bash)" in */bash) ;; *) exit 1;; esac
 test "$(getent passwd root | cut -d: -f7)" = /usr/bin/ash
 test "$(getent passwd tester | cut -d: -f7)" = /usr/bin/ash
+useradd -D | grep -x 'SHELL=/usr/bin/ash'
+grep -x 'DSHELL=/usr/bin/ash' /etc/adduser.conf
 getent shells 2>/dev/null || cat /etc/shells
 ! pgrep -x systemd
 ! pgrep -x systemd-init
