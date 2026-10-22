@@ -2,7 +2,7 @@
 
 Run under BusyBox ash with BME_TEST_SHELL='busybox ash' python3 -m unittest
 discover -s tests. Default dash supplies an additional portable-shell check.
-The real partition/extraction path is exercised only by ci/vm-test.py in QEMU.
+The real partition/extraction path is exercised only by vm/verify.py in QEMU.
 """
 import os
 from pathlib import Path

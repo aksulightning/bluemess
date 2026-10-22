@@ -16,9 +16,21 @@
 
 ## Checks actually run locally
 
-- 17 non-destructive Python tests passed, including installer syntax and
+- 21 non-destructive Python tests passed, including installer syntax and
   behavior tests under Debian BusyBox ash 1.38.0.
 - Installer ShellCheck 0.11.0 passed. Build scripts passed Bash syntax checks.
 - bme-config Debian package assembled successfully with dpkg-deb.
 - Local execution environment lacks a usable /proc and QEMU; no local boot or
   full ISO build result is claimed. Remote Actions is the intended execution path.
+
+## Remote execution
+
+- Draft PR: https://github.com/aksulightning/bluemess/pull/1
+- Initial push run: https://github.com/aksulightning/bluemess/actions/runs/39798798781
+- Its build job remained queued with no assigned runner and zero executed steps
+  at the latest inspection. No ISO, checksum, VM or RAM result exists yet.
+- Follow-up checks add hybrid USB boot smoke, original optical offline
+  installation, complete installer-log extraction, publication byte identity,
+  missing-artifact rejection, and package-maintainer service metadata.
+- Local full builds cannot substitute: Docker and QEMU are unavailable and
+  unshare fails because /proc/self/uid_map is unavailable in this workspace.

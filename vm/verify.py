@@ -90,7 +90,7 @@ class QMP:
 
 
 class Guest:
-    def __init__(self, args, work, phase, disk, variables, network, iso=None):
+    def __init__(self, args, work, phase, disk, variables, network, iso=None, usb_media=False):
         self.buffer = ''
         self.redactions = []
         self.log = (work.parent / f'{phase}-serial.log').open('w', encoding='utf-8')
@@ -105,7 +105,11 @@ class Guest:
                    '-drive', f'if=virtio,format=qcow2,file={disk}',
                    '-boot', 'order=d' if iso else 'order=c']
         command += ['-nic', 'user,model=virtio-net-pci'] if network else ['-nic', 'none']
-        if iso:
+        if iso and usb_media:
+            command += ['-device', 'qemu-xhci',
+                        '-drive', f'if=none,id=installmedia,file={iso},format=raw,readonly=on',
+                        '-device', 'usb-storage,drive=installmedia,bootindex=1']
+        elif iso:
             command += ['-drive', f'file={iso},format=raw,media=cdrom,readonly=on']
         (work.parent / f'{phase}-qemu.json').write_text(json.dumps(command, indent=2) + '\n')
         master, slave = pty.openpty()
@@ -334,6 +338,45 @@ def main():
         result['qemu_version'] = subprocess.check_output(['qemu-system-x86_64', '--version'], text=True).strip()
         subprocess.run(['qemu-img', 'create', '-f', 'qcow2', str(disk), '12G'], check=True)
         password = secrets.token_hex(16)
+        # Exercise the exact ISO bytes as USB mass-storage before optical install.
+        # The only hard disk remains our newly created disposable /dev/vda.
+        guest = Guest(args, work, 'usb-installer', disk, nvram, network=False, iso=iso, usb_media=True)
+        guest.redactions = [password]
+        guest.login('root', 'bluemess')
+        usb_facts = guest.run('''set -eu
+case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
+test -d /sys/firmware/efi
+test "$(ls /sys/class/net | wc -l)" -eq 1
+test -d /sys/class/net/lo
+test -f /run/bme-media/bme/rootfs.tar.zst
+test -f /run/bme-media/bme/SHA256SUMS
+media_path=$(readlink -f /run/bme-media)
+media_source=$(findmnt -rn -T "$media_path" -o SOURCE)
+media_source=${media_source%%\\[*}
+media_disk=$(lsblk -snrpo NAME,TYPE,TRAN "$media_source" | awk '$2 == "disk" && $3 == "usb" {print $1; exit}')
+test -n "$media_disk"
+test "$media_disk" != /dev/vda
+printf 'USB boot medium: %s (mount source %s)\\n' "$media_disk" "$media_source"
+findmnt -rn -T "$media_path" -o SOURCE,TARGET,FSTYPE,OPTIONS
+lsblk -o NAME,TYPE,SIZE,TRAN,RO,FSTYPE
+before=$(dd if=/dev/vda bs=4096 count=1 status=none | sha256sum)
+if bme-install --dry-run --disk "$media_disk" > /run/bme-usb-rejection.log 2>&1; then
+    cat /run/bme-usb-rejection.log
+    printf '%s\\n' 'ERROR: installer accepted its own USB boot medium'
+    exit 1
+fi
+cat /run/bme-usb-rejection.log
+grep -Eq 'ERROR: Target (is read-only|must be at least 4 GiB|contains mounted filesystems, swap, active holders, or the installation medium)' /run/bme-usb-rejection.log
+after=$(dd if=/dev/vda bs=4096 count=1 status=none | sha256sum)
+test "$before" = "$after"
+test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
+''', timeout=180)
+        record(output, 'usb-boot-and-media-rejection.log', usb_facts)
+        guest.qmp.command('screendump', {'filename': str(output / 'usb-console.ppm')})
+        guest.poweroff()
+        guest.close()
+        guest = None
+        result['checks'].append('Identical ISO boots as USB mass-storage with native OpenRC, offline payload mounted, and installer dry-run rejects its own USB disk')
         guest = Guest(args, work, 'installer', disk, nvram, network=False, iso=iso)
         guest.redactions = [password]
         guest.login('root', 'bluemess')
@@ -344,8 +387,9 @@ def main():
         result['checks'].append('ISO reaches native OpenRC CLI; no guest NIC during installation')
         # Terminal echo is disabled and only received output is logged.
         guest.run(f"umask 077; printf '%s\\n' {shlex.quote(password)} > /run/bme-test-password")
-        install = guest.run('bme-install --unattended --disk /dev/vda --acknowledge ERASE:/dev/vda --hostname bme-test --username tester --password-file /run/bme-test-password --locale en_US.UTF-8 --keyboard us --timezone Etc/UTC', timeout=1800)
+        install = guest.run('bme-install --unattended --disk /dev/vda --acknowledge ERASE:/dev/vda --hostname bme-test --username tester --password-file /run/bme-test-password --locale en_US.UTF-8 --keyboard us --timezone Etc/UTC', timeout=1800, check=False)
         record(output, 'installer.log', install)
+        record(output, 'installer-engine.log', guest.run('for path in /tmp/bme-install.*/install.log; do test ! -f "$path" || cat "$path"; done', check=False))
         if 'Installation complete.' not in install:
             raise Failure('Installer did not report successful completion')
         record(output, 'installed-partitions.log', guest.run('lsblk -o NAME,TYPE,FSTYPE,PARTTYPE,UUID /dev/vda; blkid /dev/vda1 /dev/vda2'))

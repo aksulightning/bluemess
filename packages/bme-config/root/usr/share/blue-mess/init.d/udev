@@ -1,4 +1,14 @@
 #!/sbin/openrc-run
+### BEGIN INIT INFO
+# Provides:          udev
+# Required-Start:
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:      
+# Short-Description: Blue Mess native OpenRC udev service
+### END INIT INFO
+# LSB metadata preserves Debian package helper compatibility. Native OpenRC
+# ordering is specified by depend() below.
 description="Device manager and coldplug"
 command=/usr/lib/systemd/systemd-udevd
 command_args="--resolve-names=never"

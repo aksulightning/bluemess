@@ -52,6 +52,7 @@ jobs:
           python3 build/validate-results.py out
           cd out
           sha256sum -c SHA256SUMS
+          tar --zstd --exclude=verification/work -cf diagnostics.tar.zst logs verification
       - name: Upload validated download
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -63,6 +64,7 @@ jobs:
             out/build-*
             out/builder-image.json
             out/repositories.list
+            out/diagnostics.tar.zst
             out/verification/*.json
             out/verification/*.md
             out/verification/*.txt
@@ -108,6 +110,7 @@ jobs:
             echo 'Release already exists; refusing to overwrite assets' >&2
             exit 1
           fi
+          mapfile -d '' -t assets < <(find . -type f -print0)
           gh release create "$RELEASE_TAG" --verify-tag --title "Blue Mess Edition $RELEASE_TAG" \
             --notes 'UEFI amd64 installer. See bundled verification and memory reports. Verify SHA256SUMS before use.' \
-            ./*.iso ./SHA256SUMS ./*.tsv ./*.json ./*.txt ./*.list ./*.md
+            "${assets[@]}"

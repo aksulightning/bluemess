@@ -87,6 +87,8 @@ grub-mkrescue --modules='part_gpt part_msdos fat iso9660 normal linux search sea
   --product-name='Blue Mess Edition' -o "out/$iso" work/iso
 (cd out && sha256sum "$iso" > SHA256SUMS)
 xorriso -indev "out/$iso" -report_el_torito plain -report_system_area plain > out/logs/iso-layout.log 2>&1
+grep -q 'UEFI' out/logs/iso-layout.log
+grep -q 'GPT' out/logs/iso-layout.log
 python3 - "$VERSION" "$DEBIAN_SNAPSHOT" <<'PY'
 import json, os, pathlib, sys
 pathlib.Path('out/build-metadata.json').write_text(json.dumps(dict(version=sys.argv[1],snapshot=sys.argv[2],architecture='amd64',source_commit=os.environ.get('SOURCE_COMMIT','unknown'),validated=False),indent=2)+'\n')
