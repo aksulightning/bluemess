@@ -60,3 +60,11 @@
 - Fixed boot to remove an empty ID before generating a fresh one. Added the
   mountkernfs compatibility provider and fail-fast boot assertions. Full
   installation and RAM results remain unmeasured until a corrected VM run.
+
+- A later push run (39801581926) failed before construction because Docker Hub
+  returned HTTP 500 while reading the Debian base manifest. Added three bounded
+  container-build attempts, preserving each attempt's log.
+- Native boot now runs the explicitly selected standalone sysusers/tmpfiles
+  helpers, including the root-owned X11/ICE socket directories required by
+  ordinary-user Xorg. Installer refreshes cached console keyboard settings
+  before generating the target initramfs.

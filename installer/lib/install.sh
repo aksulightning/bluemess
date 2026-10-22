@@ -194,6 +194,7 @@ EOF
     printf '%%sudo ALL=(ALL:ALL) ALL\n' > "$BME_TARGET/etc/sudoers.d/blue-mess"
     chmod 440 "$BME_TARGET/etc/sudoers.d/blue-mess"
     bme_run chroot "$BME_TARGET" visudo -cf /etc/sudoers
+    bme_run chroot "$BME_TARGET" setupcon --save-only
     bme_run chroot "$BME_TARGET" update-initramfs -u -k all
     # Removable fallback path supports USB/firmware with no writable NVRAM.
     bme_run chroot "$BME_TARGET" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=BlueMess --removable --no-nvram

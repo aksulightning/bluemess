@@ -34,7 +34,11 @@ jobs:
           mkdir -p out/logs
           set -o pipefail
           source build/inputs.env
-          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile . 2>&1 | tee out/logs/container.log
+          for attempt in 1 2 3; do
+            if docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile . 2>&1 | tee -a out/logs/container.log; then break; fi
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            sleep "$((attempt * 5))"
+          done
           docker image inspect bme-builder > out/builder-image.json
       - name: Validate sources under BusyBox ash
         run: |

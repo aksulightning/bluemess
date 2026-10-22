@@ -27,6 +27,10 @@ start() {
     fi
     mkdir -p /var/lib/dbus
     ln -sf /etc/machine-id /var/lib/dbus/machine-id
+    # Standalone Debian helpers apply packaged system users and runtime paths.
+    # In particular rootless Xorg needs root-owned sticky X11/ICE socket dirs.
+    systemd-sysusers || return 1
+    systemd-tmpfiles --create --remove --boot || return 1
     [ ! -x /usr/bin/setupcon ] || setupcon --force >/dev/null 2>&1 || ewarn "Console setup unavailable"
     [ ! -x /usr/sbin/alsactl ] || alsactl restore >/dev/null 2>&1 || :
     rm -f /run/nologin

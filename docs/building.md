@@ -16,7 +16,8 @@ Debian dependencies are resolved from the same snapshot, and the resulting
 complete package/version/architecture manifests accompany every image. The
 build records source commit, snapshot, repository source, tool versions, image
 identity and build time. This provides provenance, not a claim of bit-identical
-reproducibility. To refresh inputs, update `build/inputs.env`, inspect the package
+reproducibility. To refresh inputs, update `build/inputs.env` and deliberately refresh the official
+Debian base-image digest in `build/Dockerfile` when needed, inspect the package
 resolution and integration changes, and pass the complete VM/benchmark suite.
 
 For a local build on a disposable Linux development machine with Docker:

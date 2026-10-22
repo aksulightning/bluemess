@@ -19,7 +19,7 @@ Section: admin
 Priority: optional
 Architecture: all
 Maintainer: Blue Mess Edition contributors <bluemess@users.noreply.github.com>
-Depends: openrc, openrc-init, busybox, init-system-helpers, bash, dash, passwd, login, adduser, debianutils, util-linux, mount, sysvinit-utils, e2fsprogs, udev, kmod, dbus, elogind, libpam-elogind, libpam-runtime, chrony, iproute2
+Depends: openrc, openrc-init, busybox, init-system-helpers, bash, dash, passwd, login, adduser, debianutils, util-linux, mount, sysvinit-utils, e2fsprogs, udev, kmod, systemd-standalone-sysusers, systemd-standalone-tmpfiles, dbus, elogind, libpam-elogind, libpam-runtime, chrony, iproute2
 Description: Blue Mess Edition native OpenRC integration and user defaults
  Supplies native boot and daemon ownership, BusyBox ash, minimal desktop
  defaults and explicit APT policy for Debian Sid.

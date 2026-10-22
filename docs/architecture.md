@@ -30,6 +30,8 @@ initramfs-tools owns root filesystem checks before mounting root. `bme-localmoun
 
 The configuration package diverts Debian's dbus, elogind, chrony and udev service entry points to preserved vendor paths and installs proper `openrc-run` entry points. Thus package maintainer `invoke-rc.d`/service actions have a real service implementation; they are not replaced with unconditional-success commands. Removal restores diverted scripts. Build-time policy preventing daemon starts is limited to image construction. The configuration step removes inherited runlevel links and activates exactly one owner per daemon.
 
+The explicitly installed `systemd-standalone-sysusers` and `systemd-standalone-tmpfiles` helpers run during `bme-boot` to apply Debian package user definitions and runtime directories, including the root-owned sticky X11/ICE socket directories required by rootless Xorg. They are standalone command-line helpers and do not start a systemd manager.
+
 The kernel udev daemon may have `systemd` in its filename. That is permitted: it is a device helper rather than a system or user service manager. Runtime verification must assert `/proc/1/exe`, service state and actual processes.
 
 ## Networking, firmware and audio
