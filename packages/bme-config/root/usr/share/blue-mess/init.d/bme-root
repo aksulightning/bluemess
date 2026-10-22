@@ -1,6 +1,6 @@
 #!/sbin/openrc-run
 description="Blue Mess writable root and kernel filesystems"
-depend() { before bme-localmount udev; keyword -docker -lxc; }
+depend() { before bme-localmount udev; provide mountkernfs; keyword -docker -lxc; }
 start() {
     ebegin "Preparing kernel filesystems and writable root"
     mountpoint -q /proc || mount -t proc proc /proc || return 1

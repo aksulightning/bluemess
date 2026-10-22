@@ -19,7 +19,12 @@ start() {
     fi
     umask 077
     dd if=/dev/urandom of=/var/lib/blue-mess/random-seed bs=512 count=1 status=none || return 1
-    [ -s /etc/machine-id ] || dbus-uuidgen --ensure=/etc/machine-id || return 1
+    if [ ! -s /etc/machine-id ]; then
+        # dbus-uuidgen rejects an existing empty file; systemd-style placeholders
+        # are not a valid input to its --ensure implementation.
+        rm -f /etc/machine-id
+        dbus-uuidgen --ensure=/etc/machine-id || return 1
+    fi
     mkdir -p /var/lib/dbus
     ln -sf /etc/machine-id /var/lib/dbus/machine-id
     [ ! -x /usr/bin/setupcon ] || setupcon --force >/dev/null 2>&1 || ewarn "Console setup unavailable"

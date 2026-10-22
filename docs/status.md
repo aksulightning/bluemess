@@ -48,3 +48,15 @@
   accounts created after installation follow the distribution shell policy.
 - Corrected-build run: https://github.com/aksulightning/bluemess/actions/runs/39800208522
   remained queued with zero job steps and no runner at the subsequent inspection.
+
+## First candidate and actual USB boot
+
+- Corrected PR run 39800217819 successfully assembled an 842 MiB EFI/GPT
+  hybrid candidate ISO. Its later VM step was cancelled by the next source push.
+- Preserved USB serial evidence shows Linux booting native OpenRC 0.64.1 and
+  passing root/local-filesystem startup, then failing bme-boot because
+  dbus-uuidgen rejects a precreated empty machine-ID file. No login/installation
+  or desktop acceptance is claimed for this candidate.
+- Fixed boot to remove an empty ID before generating a fresh one. Added the
+  mountkernfs compatibility provider and fail-fast boot assertions. Full
+  installation and RAM results remain unmeasured until a corrected VM run.

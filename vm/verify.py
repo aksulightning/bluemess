@@ -151,7 +151,9 @@ class Guest:
                 self.buffer += text
 
     def login(self, user, password):
-        self.until(r'(?:^|\n)[^\n]*login:\s*', 900)
+        _, boot_match = self.until(r'(?:^|\n)[^\n]*login:\s*|Kernel panic[^\n]*|ERROR: (?:bme-boot failed to start|cannot start bme-getty[^\n]*)', 900)
+        if 'login:' not in boot_match.group(0):
+            raise Failure('Guest boot failed before console login: ' + boot_match.group(0))
         self.send(user + '\n')
         self.until(r'Password:\s*', 60)
         self.send(password + '\n')
