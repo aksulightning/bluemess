@@ -2,9 +2,9 @@
 set -eu
 case "$1" in
 configure)
-    /usr/bin/busybox --list | grep -qx ash
+    /usr/bin/busybox --list | grep -x ash >/dev/null
     for applet in ash udhcpc syslogd klogd; do
-        /usr/bin/busybox --list | grep -qx "$applet" || {
+        /usr/bin/busybox --list | grep -x "$applet" >/dev/null || {
             echo "Required Debian BusyBox applet missing: $applet" >&2; exit 1;
         }
     done
@@ -15,7 +15,7 @@ configure)
     mkdir -p /usr/share/blue-mess/vendor-init /etc/init.d
     for name in dbus elogind chrony udev; do
         destination="/usr/share/blue-mess/vendor-init/$name"
-        if ! dpkg-divert --listpackage "/etc/init.d/$name" | grep -q '^bme-config$'; then
+        if ! dpkg-divert --listpackage "/etc/init.d/$name" | grep '^bme-config$' >/dev/null; then
             dpkg-divert --package bme-config --add --rename --divert "$destination" "/etc/init.d/$name"
         fi
         install -m 0755 "/usr/share/blue-mess/init.d/$name" "/etc/init.d/$name"

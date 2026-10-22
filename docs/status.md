@@ -34,3 +34,12 @@
   missing-artifact rejection, and package-maintainer service metadata.
 - Local full builds cannot substitute: Docker and QEMU are unavailable and
   unshare fails because /proc/self/uid_map is unavailable in this workspace.
+
+## First Actions build failure
+
+- Initial push run completed with failure during candidate construction, exit
+  141 after assembling the target root. The build environment, ash tests and
+  diagnostic upload passed; ISO and VM steps did not complete.
+- Removed early-exiting grep checks from pipefail pipelines (SIGPIPE risk),
+  and added an ERR trap with exact build line/command reporting for subsequent
+  failures. This correction still requires the next real build to validate it.

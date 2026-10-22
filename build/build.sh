@@ -1,6 +1,7 @@
 #!/bin/bash
 # Host tooling may use Bash. Target utilities are ash-compatible.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'status=$?; printf "Build failed (%s) at line %s: %s\n" "$status" "$LINENO" "$BASH_COMMAND" >&2' ERR
 cd "$(dirname "$0")/.."
 source build/inputs.env
 VERSION=${VERSION:-0.1.0-dev}
@@ -44,9 +45,9 @@ bootstrap() {
     [[ ! -s out/logs/$role-dpkg-audit.log ]]
     [[ $(readlink "$root/bin/sh") == dash ]]
     [[ -x $root/usr/sbin/openrc-init && -x $root/bin/bash ]]
-    for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -qx "$applet"; done
+    for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done
     chroot "$root" busybox ash -c 'test "$(printf "%s" ash)" = ash; set -eu; : "$((1+1))"'
-    if chroot "$root" dpkg-query -W -f='${db:Status-Status}\n' systemd 2>/dev/null | grep -qx installed; then
+    if chroot "$root" dpkg-query -W -f='${db:Status-Status}\n' systemd 2>/dev/null | grep -x installed >/dev/null; then
         echo 'Unexpected systemd manager installed' >&2; exit 1
     fi
     chroot "$root" update-initramfs -u -k all
