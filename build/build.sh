@@ -55,6 +55,25 @@ bootstrap() {
             echo "Native service misclassified as LSB: $service" >&2; exit 1;
         }
     done
+    # Resolve command assignments with the target's real shell, rather than
+    # trusting package-name guesses about daemon executable locations. Sourcing
+    # native service definitions does not invoke their start/start_pre functions.
+    chroot "$root" /usr/bin/ash -c '
+        set -eu
+        for service in /usr/share/blue-mess/init.d/*; do
+            command=
+            RC_SVCNAME=${service##*/}
+            export RC_SVCNAME
+            . "$service"
+            if [ -n "$command" ]; then
+                [ -f "$command" ] && [ -x "$command" ] || {
+                    printf "Missing executable for %s: %s\n" "$RC_SVCNAME" "$command" >&2
+                    exit 1
+                }
+                printf "%s\t%s\n" "$RC_SVCNAME" "$command"
+            fi
+        done
+    ' > "out/logs/$role-service-commands.log"
     [[ $(readlink "$root/bin/sh") == dash ]]
     [[ -x $root/usr/sbin/openrc-init && -x $root/bin/bash ]]
     for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done

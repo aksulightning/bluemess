@@ -103,3 +103,10 @@
   scripts now classify correctly. The build checks the actual Debian parser,
   Debian helper checksums, active elogind PAM configuration, and clean volatile
   directories before creating either root filesystem.
+
+- Run 39806982630 built both images with correct native daemon dispatch, then
+  exposed the Debian elogind executable at /usr/libexec/elogind (a file, not
+  a directory). The incorrect command prevented gettys from starting. Corrected
+  the path from the selected package contents and added build assertions for
+  every declared native-service command in both roots. No desktop or RAM result
+  is claimed for this failed candidate.
