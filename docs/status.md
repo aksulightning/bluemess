@@ -228,3 +228,8 @@
   Xorg desktop, preserving active Openbox config and geometry on failure. It
   does not move windows through a window-manager API. Keyboard resize remains
   real QMP input. Subsequent logout/toolchain/auto-start/RAM checks are pending.
+
+- Run 40026201436 confirmed real titlebar dragging: the xterm moved from
+  (270, 219) to (318, 243). The keyboard resize probe sent only one arrow;
+  upstream Openbox resize_with_keys uses that first arrow to select an edge,
+  so the probe now sends a second arrow before confirming the changed width.

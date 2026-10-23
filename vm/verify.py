@@ -491,8 +491,11 @@ finally:
         raise Failure(f'Titlebar drag did not move xterm: {before} -> {after_move}')
     guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 'f8'}], 'hold-time': 200})
     time.sleep(.5)
-    guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'right'}], 'hold-time': 200})
-    time.sleep(.5)
+    # Openbox uses the first arrow to select the resize edge; only a
+    # subsequent arrow changes the size (resize_with_keys in moveresize.c).
+    for _ in range(2):
+        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'right'}], 'hold-time': 200})
+        time.sleep(.5)
     guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ret'}], 'hold-time': 200})
     time.sleep(.5)
     after_resize = geometry()
