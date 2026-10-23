@@ -431,17 +431,32 @@ exit 1
     top = int(extents.split('=')[1].split(',')[2])
     if top <= 0:
         raise Failure('Test xterm has no titlebar to drag')
-    guest.run(xenv + 'xset m 1/1 0')
     try:
         def mouse(events):
             guest.qmp.command('input-send-event', {'events': events})
             time.sleep(.2)
 
-        # Reset to the top-left edge, then position with unaccelerated motion.
-        mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': -32767}},
-               {'type': 'rel', 'data': {'axis': 'y', 'value': -32767}}])
-        mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': before[0] + min(80, before[2] // 2)}},
-               {'type': 'rel', 'data': {'axis': 'y', 'value': before[1] - max(1, top // 2)}}])
+        # Place the pointer with Xlib so host/guest acceleration cannot put
+        # the initial click outside the titlebar. The drag itself is real QMP
+        # mouse input. Python is already required by Debian's Openbox package;
+        # this transient probe does not add a guest helper or startup hook.
+        pointer_x = before[0] + min(80, before[2] // 2)
+        pointer_y = before[1] - max(1, top // 2)
+        warp = f"""import ctypes as c
+x = c.CDLL('libX11.so.6')
+x.XOpenDisplay.restype = c.c_void_p
+x.XDefaultRootWindow.argtypes = [c.c_void_p]
+x.XDefaultRootWindow.restype = c.c_ulong
+x.XWarpPointer.argtypes = [c.c_void_p, c.c_ulong, c.c_ulong, c.c_int, c.c_int, c.c_uint, c.c_uint, c.c_int, c.c_int]
+x.XSync.argtypes = [c.c_void_p, c.c_int]
+x.XCloseDisplay.argtypes = [c.c_void_p]
+d = x.XOpenDisplay(None)
+assert d, 'Cannot open the real X display'
+x.XWarpPointer(d, 0, x.XDefaultRootWindow(d), 0, 0, 0, 0, {pointer_x}, {pointer_y})
+x.XSync(d, 0)
+x.XCloseDisplay(d)
+"""
+        guest.run(xenv + 'python3 -c ' + shlex.quote(warp))
         mouse([{'type': 'btn', 'data': {'button': 'left', 'down': True}}])
         mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': 48}},
                {'type': 'rel', 'data': {'axis': 'y', 'value': 24}}])
@@ -461,7 +476,7 @@ exit 1
         record(output, 'window-interactions.json', json.dumps({'window': window, 'before': before,
                'after_titlebar_drag': after_move, 'after_keyboard_resize': after_resize}, indent=2))
     finally:
-        guest.run(xenv + 'xset m default', check=False)
+        guest.qmp.command('input-send-event', {'events': [{'type': 'btn', 'data': {'button': 'left', 'down': False}}]})
 
 
 def memory(guest, output, boot):
