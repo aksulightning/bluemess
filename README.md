@@ -1,8 +1,9 @@
 # Blue Mess Edition
 
 A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
-standalone Openbox, and xterm. Console login, then `startx`. No display manager,
-panel, compositor, indexing service, or automatic desktop application startup.
+standalone Openbox, an XFCE panel and power manager, and xterm. Console login,
+then `bluemess-desktop start`. No display manager or compositor is required.
+Desktop auto-start is an explicit per-user setting; normal password login remains.
 
 **Development status:** first implementation. A specific image is validated only
 when its Actions run passes all required checks. Consult
@@ -56,7 +57,25 @@ copy the live environment. Logs appear at the path printed by the installer and
 are also copied to `/var/log/blue-mess/install.log` on success.
 
 After completion, shut down, remove the installation medium, and boot the disk.
-Log in with the created account, then run `startx`. Root is password-locked;
+Log in with the created account, then run `bluemess-desktop start` (or `startx`).
+To start the desktop after future tty1 logins, run `bluemess-desktop auto-start true`
+as your ordinary user, without sudo. Use `bluemess-desktop auto-start false` to
+return to console-only logins, and `bluemess-desktop status` to inspect the setting.
+Auto-start is off by default and never starts X on tty2, the serial console, SSH,
+or as root. Leaving Openbox returns to the authenticated text console.
+
+The bottom panel contains a terminal launcher, window list, workspace switcher,
+notification area, power indicator and clock. There is no screensaver, automatic
+screen locking, idle logout, idle suspend, dimming or display blanking by default.
+Closing a laptop lid requests suspend through elogind; critical battery power
+requests a controlled shutdown. Hardware support must be checked on real laptops.
+
+`build-essential`, matching kernel headers, DKMS and Lua 5.4 are included for
+local development and later driver installation. Debian's Openbox package
+requires Python 3, so it remains installed as a dependency. No NVIDIA driver is
+installed automatically.
+
+Root is password-locked;
 use `sudo`. BusyBox ash is the interactive shell; Debian Bash and dash remain.
 
 ## Build and verify

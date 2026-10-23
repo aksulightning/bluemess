@@ -31,7 +31,7 @@ configure)
     [ -f /etc/blue-mess/network.conf ] || printf 'mode=auto\ninterface=\n' > /etc/blue-mess/network.conf
     cp -a /usr/share/blue-mess/skel/. /etc/skel/
     mkdir -p /etc/skel/Documents /etc/skel/Downloads
-    printf '[Login]\nNAutoVTs=0\nReserveVT=0\n' > /etc/elogind/logind.conf.d/90-blue-mess.conf
+    printf '[Login]\nNAutoVTs=0\nReserveVT=0\nIdleAction=ignore\nHandleLidSwitch=suspend\n' > /etc/elogind/logind.conf.d/90-blue-mess.conf
     # Disable package-specific user services: dbus-run-session owns desktop bus.
     pam-auth-update --package
     ;;

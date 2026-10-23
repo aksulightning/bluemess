@@ -24,7 +24,7 @@ The host needs Python 3.11 or newer, `qemu-system-x86_64`, `qemu-img`, and OVMF.
 | Firmware | OVMF UEFI, Secure Boot disabled |
 | Disk | fresh 12 GiB virtio qcow2, GPT, EFI System Partition and ext4 root |
 | Networking | no NIC while installing; virtio user network for installed boots |
-| Desktop | normal-user Openbox, one idle xterm running BusyBox ash |
+| Desktop | normal-user Openbox, XFCE panel/power manager, authentication agent, one idle xterm running BusyBox ash |
 | Other activity | default delivered services; no browser or extra interactive application |
 | Swap use | exactly zero |
 | Settling | 60 seconds after desktop and networking checks on each boot |
@@ -34,7 +34,7 @@ QEMU's version and full invocation are captured alongside the result. Every boot
 
 Before installation, the harness boots the identical ISO bytes through QEMU xHCI USB mass-storage with no NIC, authenticates the live root console, checks native OpenRC PID 1 and the mounted offline payload, discovers the USB backing disk from the actual media mount, and verifies `bme-install --dry-run --disk` rejects that disk. It records the USB console screenshot, media ancestry, rejection output, and an unchanged disposable-target partition header. It then shuts down and boots the same ISO as optical media for the actual installation, retaining the disposable disk and UEFI variables.
 
-The harness authenticates through the real ttyS0 login and checks the user enters ash. It authenticates the same user on tty1 through the emulated keyboard, runs `startx`, checks Xorg and Openbox run under that user's UID, and opens one xterm through the desktop's keyboard shortcut. `xrandr` selects and records the reference resolution on the real VGA display. A QMP screenshot and Xorg logs preserve evidence of the guest desktop. Xvfb is not used.
+The harness authenticates through the real ttyS0 login and checks the user enters ash. It authenticates the same user on tty1 through the emulated keyboard, runs `bluemess-desktop start` initially and enables tty1 auto-start for the benchmark reboots, checks Xorg and Openbox run under that user's UID, and opens one xterm through the desktop's keyboard shortcut. `xrandr` selects and records the reference resolution on the real VGA display. The delivered panel, power manager, UPower and disabled idle display blanking are checked on every measured boot. Initial verification also checks desktop logout cleanup, C/Lua execution and a build against the running kernel headers. A QMP screenshot and Xorg logs preserve evidence of the guest desktop. Xvfb is not used.
 
 The initial installed boot also checks DHCP, DNS, required packages, persistent APT settings, fresh visible home entries, `/bin/sh` and Bash compatibility, UUID-based mounts and the actual PID 1. A real package is installed and removed, APT checks dependency consistency, and an upgrade simulation is checked for attempts to replace the selected init. The benchmark then measures three reboots, so package-manager workload is not mixed into the fresh desktop measurement. Reboot and final poweroff use native `openrc-shutdown`.
 

@@ -1,0 +1,44 @@
+#!/usr/bin/ash
+# User-owned preferences; never source configuration as shell code.
+set -eu
+config=${XDG_CONFIG_HOME:-$HOME/.config}/blue-mess/auto-start
+session=/usr/lib/blue-mess/desktop-session
+enabled() { [ -f "$config" ] && [ "$(cat "$config")" = true ]; }
+can_start() {
+    [ "$(id -u)" -ne 0 ] && [ -z "${DISPLAY:-}" ] &&
+        [ -z "${WAYLAND_DISPLAY:-}" ] && [ "$(tty 2>/dev/null)" = /dev/tty1 ]
+}
+case "${1:-}" in
+    auto-start)
+        [ "$#" -eq 2 ] || { echo 'Usage: bluemess-desktop auto-start true|false' >&2; exit 2; }
+        case "$2" in true|false) ;; *) echo 'Expected true or false.' >&2; exit 2;; esac
+        [ "$(id -u)" -ne 0 ] || { echo 'Run this as your ordinary user, without sudo.' >&2; exit 1; }
+        mkdir -p "${config%/*}"
+        temp=$(mktemp "${config%/*}/.auto-start.XXXXXX")
+        trap 'rm -f "$temp"' EXIT HUP INT TERM
+        printf '%s\n' "$2" > "$temp"
+        mv -f "$temp" "$config"
+        trap - EXIT HUP INT TERM
+        printf 'Desktop auto-start: %s (next tty1 login).\n' "$2"
+        ;;
+    status)
+        [ "$#" -eq 1 ] || exit 2
+        if enabled; then echo 'Desktop auto-start: true'; else echo 'Desktop auto-start: false'; fi
+        ;;
+    start)
+        [ "$#" -eq 1 ] || exit 2
+        can_start || { echo 'Start the desktop as an ordinary user from tty1, outside an existing desktop.' >&2; exit 1; }
+        exec startx "$session"
+        ;;
+    --login)
+        # Called once by the interactive login profile. Returning after X exits
+        # leaves the user at the console; it does not log out or restart X.
+        if enabled && can_start; then
+            startx "$session" || printf '%s\n' 'Desktop failed to start; remaining at the console.' >&2
+        fi
+        ;;
+    *)
+        echo 'Usage: bluemess-desktop auto-start true|false | status | start' >&2
+        exit 2
+        ;;
+esac

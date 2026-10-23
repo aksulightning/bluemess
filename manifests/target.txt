@@ -64,3 +64,19 @@ gawk
 sysvinit-utils
 adduser
 debianutils
+
+# Desktop companions and power authorization; no XFCE session manager.
+xfce4-panel
+xfce4-power-manager
+xfce4-power-manager-plugins
+xfconf
+upower
+polkitd
+pkexec
+lxpolkit
+adwaita-icon-theme
+# Local compilation, kernel module updates and Lua scripting.
+build-essential
+linux-headers-amd64
+dkms
+lua5.4

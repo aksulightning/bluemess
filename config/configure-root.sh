@@ -10,7 +10,7 @@ printf 'bluemess\n' > "$root/etc/hostname"
 printf '127.0.0.1 localhost\n127.0.1.1 bluemess\n::1 localhost ip6-localhost ip6-loopback\n' > "$root/etc/hosts"
 cat > "$root/etc/issue" <<'ISSUE'
 Blue Mess Edition (Debian Sid) \n \l
-Console login, then startx for the desktop. Super+Enter or Ctrl+Alt+T: terminal.
+Console login, then bluemess-desktop start for the desktop. Super+Enter or Ctrl+Alt+T: terminal.
 ISSUE
 # The normal Debian package helpers remain installed and functional.
 # Activate one native owner for every daemon; remove inherited SysV runlevels.
@@ -43,6 +43,9 @@ RC
 if [ "$role" = installer ]; then
     ln -s /etc/init.d/bme-media "$root/etc/runlevels/default/bme-media"
     printf '\nInstaller media: root password is bluemess. Run bme-install.\n' >> "$root/etc/issue"
+fi
+if [ "$role" = target ]; then
+    sed -i 's/^CriticalPowerAction=.*/CriticalPowerAction=PowerOff/' "$root/etc/UPower/UPower.conf"
 fi
 # /bin/sh and /bin/bash must remain real Debian interpreter choices.
 chroot "$root" /bin/sh -c '[ "$(readlink -f /bin/sh)" = /usr/bin/dash ] || [ "$(readlink -f /bin/sh)" = /bin/dash ]'

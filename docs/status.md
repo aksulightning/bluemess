@@ -1,5 +1,29 @@
 # Implementation record
 
+## 2026-10-23: optional tty1 desktop startup and development tools
+
+- Added user commands for persistent tty1 auto-start, status and manual desktop
+  startup, with non-root/tty/display guards and default false. No autologin or
+  automatic logout is introduced. Existing accounts can opt in via the packaged
+  login hook and session helper without replacing their own profiles.
+- The Blue Mess session runs Openbox, one bottom XFCE panel, power manager and
+  lxpolkit in one private D-Bus session. Companion processes stop on logout.
+  Missing XFCE user settings are seeded without overwriting existing choices.
+- Default idle sleep, blanking, dimming and locking are disabled. elogind handles
+  lid suspend, and critical power requests PowerOff. UPower/polkit retain their
+  packaged D-Bus activation. Physical battery/lid behavior is untested.
+- Added build-essential, linux-headers-amd64, DKMS and Lua 5.4 to the target.
+  Python is retained: the exact snapshot's openbox package directly depends on
+  python3. Removing it would break Debian package dependencies.
+- Focused local command/guard tests and syntax/XML checks precede the hosted
+  offline installation/desktop suite. VM checks cover panel/power presence,
+  logout cleanup, matching-header module compilation, C/Lua and auto-start on
+  three reboots. The full delivered desktop retains the 300 MiB/zero-swap gate.
+- All 24 local tests passed under dash; desktop shell/XML syntax and embedded
+  verifier shell snippets passed. bme-config assembled successfully with a
+  workspace TMPDIR. BusyBox ash, real window drag/keyboard resize, runtime and
+  memory acceptance for this change remain pending the hosted run.
+
 ## 2026-10-23: restore Openbox window interactions
 
 - The first alpha's custom Openbox configuration defined only the desktop

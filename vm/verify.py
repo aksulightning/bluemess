@@ -307,7 +307,7 @@ ps -eo pid,ppid,user,tty,stat,args
     record(output, f'console-{suffix}-{stage}.log', facts)
 
 
-def desktop(guest, password, output, suffix):
+def desktop(guest, password, output, suffix, auto_start=False):
     phase(f'{suffix}: activate tty1 and capture console before keyboard login')
     guest.run('chvt 1')
     console_state(guest, output, suffix, 'before-login')
@@ -366,7 +366,8 @@ ps -t tty1 -o pid,ppid,user,tty,stat,args
             console_state(guest, output, suffix, 'login-failed')
         raise
     phase(f'{suffix}: tty1 authenticated with ash and active logind session; start real Xorg/Openbox')
-    guest.qmp.type('startx\n')
+    if not auto_start:
+        guest.qmp.type('bluemess-desktop start\n')
     guest.run('''n=0; until pgrep -u tester -x openbox >/dev/null; do n=$((n+1)); test "$n" -le 180 || { cat /home/tester/.local/share/xorg/Xorg.0.log; exit 1; }; sleep 1; done''', timeout=240)
     # Select the same resolution on the real guest VGA server on every boot.
     guest.run('runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xrandr -s 1024x768')
@@ -375,6 +376,20 @@ ps -t tty1 -o pid,ppid,user,tty,stat,args
     facts = guest.run('''set -eu
 n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); test "$n" -le 90; sleep 1; done
 test "$(pgrep -u tester -x xterm | wc -l)" -eq 1
+# The delivered panel and power manager must be present during every benchmark.
+n=0
+until pgrep -u tester -x xfce4-panel >/dev/null && pgrep -u tester -f '^xfce4-power-manager --no-daemon$' >/dev/null; do
+    n=$((n+1)); test "$n" -le 60; sleep 1
+done
+test "$(pgrep -u tester -x xfce4-panel | wc -l)" -eq 1
+test "$(pgrep -u tester -f '^xfce4-power-manager --no-daemon$' | wc -l)" -eq 1
+pgrep -u tester -x lxpolkit
+dbus-send --system --print-reply --dest=org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower.EnumerateDevices
+runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q
+runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q | grep -Eq 'timeout:[[:space:]]+0[[:space:]]+cycle:'
+# A server without DPMS is also acceptable; otherwise it must be disabled.
+! runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q | grep -q 'DPMS is Enabled'
+
 xpid=$(pgrep -u tester -x Xorg); test -n "$xpid"
 obpid=$(pgrep -u tester -x openbox); test -n "$obpid"
 tpid=$(pgrep -u tester -x xterm); test -n "$tpid"
@@ -390,6 +405,63 @@ cat /home/tester/.local/share/xorg/Xorg.0.log
 ''', timeout=180)
     record(output, f'desktop-{suffix}.log', facts)
     guest.qmp.command('screendump', {'filename': str(output / f'desktop-{suffix}.ppm')})
+
+
+
+def window_interactions(guest, output):
+    """Exercise actual titlebar dragging, then keyboard resizing on the real VT."""
+    phase('Verify real titlebar mouse drag and keyboard window resizing')
+    xenv = 'runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority '
+    window = guest.run(xenv + """/usr/bin/ash -c '
+for window in $(xprop -root _NET_CLIENT_LIST | sed "s/.*# //; s/,//g"); do
+    if xprop -id "$window" WM_CLASS | grep -q XTerm; then printf "%s" "$window"; exit 0; fi
+done
+exit 1
+'""")
+    if not re.fullmatch(r'0x[0-9a-fA-F]+', window):
+        raise Failure('Could not identify the test xterm window')
+
+    def geometry():
+        info = guest.run(xenv + f'xwininfo -id {window}')
+        fields = ('Absolute upper-left X', 'Absolute upper-left Y', 'Width', 'Height')
+        return tuple(int(re.search(re.escape(field) + r':\s*(-?\d+)', info).group(1)) for field in fields)
+
+    before = geometry()
+    extents = guest.run(xenv + f'xprop -id {window} _NET_FRAME_EXTENTS')
+    top = int(extents.split('=')[1].split(',')[2])
+    if top <= 0:
+        raise Failure('Test xterm has no titlebar to drag')
+    guest.run(xenv + 'xset m 1/1 0')
+    try:
+        def mouse(events):
+            guest.qmp.command('input-send-event', {'events': events})
+            time.sleep(.2)
+
+        # Reset to the top-left edge, then position with unaccelerated motion.
+        mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': -32767}},
+               {'type': 'rel', 'data': {'axis': 'y', 'value': -32767}}])
+        mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': before[0] + min(80, before[2] // 2)}},
+               {'type': 'rel', 'data': {'axis': 'y', 'value': before[1] - max(1, top // 2)}}])
+        mouse([{'type': 'btn', 'data': {'button': 'left', 'down': True}}])
+        mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': 48}},
+               {'type': 'rel', 'data': {'axis': 'y', 'value': 24}}])
+        mouse([{'type': 'btn', 'data': {'button': 'left', 'down': False}}])
+        after_move = geometry()
+        if abs(after_move[0] - before[0]) < 20 or abs(after_move[1] - before[1]) < 10:
+            raise Failure(f'Titlebar drag did not move xterm: {before} -> {after_move}')
+        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 'f8'}], 'hold-time': 100})
+        time.sleep(.3)
+        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'right'}], 'hold-time': 100})
+        time.sleep(.3)
+        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ret'}], 'hold-time': 100})
+        time.sleep(.3)
+        after_resize = geometry()
+        if after_resize[2] <= after_move[2]:
+            raise Failure(f'Keyboard resize did not widen xterm: {after_move} -> {after_resize}')
+        record(output, 'window-interactions.json', json.dumps({'window': window, 'before': before,
+               'after_titlebar_drag': after_move, 'after_keyboard_resize': after_resize}, indent=2))
+    finally:
+        guest.run(xenv + 'xset m default', check=False)
 
 
 def memory(guest, output, boot):
@@ -520,7 +592,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
-for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
 apt-config dump | grep '^APT::Install-Recommends "false";'
 apt-config dump | grep '^APT::Install-Suggests "false";'
 dpkg --audit
@@ -539,7 +611,42 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 ''', timeout=1800))
         result['checks'].append('Disk-only boot, authenticated ash/sudo, home layout, UUID filesystems, DHCP/DNS, APT policy, package install/remove and upgrade plan')
         desktop(guest, password, output, 'verification')
-        result['checks'].append('Ordinary-user rootless real VGA Xorg, Openbox and one xterm running ash')
+        result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xterm/ash')
+        window_interactions(guest, output)
+        result['checks'].append('Actual QMP titlebar drag moves the xterm window and Alt+F8 keyboard resizing changes its width')
+        phase('Verify desktop logout cleans up its companion processes and returns to tty1')
+        record(output, 'desktop-logout.log', guest.run('''set -eu
+runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit
+n=0
+while pgrep -u tester -x Xorg >/dev/null || pgrep -u tester -x xfce4-panel >/dev/null || pgrep -u tester -x lxpolkit >/dev/null || pgrep -u tester -f '^xfce4-power-manager --no-daemon$' >/dev/null; do
+    n=$((n+1)); test "$n" -le 60; sleep 1
+done
+ps -t tty1 -o pid,ppid,user,comm,args
+ps -t tty1 -o user=,comm= | grep -E 'tester[[:space:]]+ash$'
+''', timeout=90))
+        result['checks'].append('Desktop logout stops Xorg, panel, power manager and authentication agent and leaves the authenticated tty1 shell')
+        phase('Verify toolchain, matching kernel headers and Lua; enable tty1 auto-start for benchmark boots')
+        record(output, 'development-tools.log', guest.run('''set -eu
+work=$(mktemp -d /tmp/bme-toolchain.XXXXXX)
+printf '#include <stdio.h>\\nint main(void) { puts("toolchain-ok"); return 0; }\\n' > "$work/hello.c"
+cc "$work/hello.c" -o "$work/hello"
+"$work/hello" | grep -x toolchain-ok
+lua5.4 -e 'assert(6 * 7 == 42); print(_VERSION)'
+dkms status
+test -f "/lib/modules/$(uname -r)/build/Makefile"
+printf '#include <linux/module.h>\\nMODULE_LICENSE("GPL");\\n' > "$work/bme_probe.c"
+printf 'obj-m := bme_probe.o\\n' > "$work/Makefile"
+make -s -C "/lib/modules/$(uname -r)/build" M="$work" modules
+test -s "$work/bme_probe.ko"
+rm -rf "$work"
+runuser -u tester -- bluemess-desktop status | grep -x 'Desktop auto-start: false'
+runuser -u tester -- bluemess-desktop auto-start true
+runuser -u tester -- bluemess-desktop status | grep -x 'Desktop auto-start: true'
+runuser -u tester -- bluemess-desktop auto-start false
+runuser -u tester -- bluemess-desktop status | grep -x 'Desktop auto-start: false'
+runuser -u tester -- bluemess-desktop auto-start true
+''', timeout=300))
+        result['checks'].append('C compilation, Lua execution, matching kernel-header module build, DKMS presence and persistent user auto-start toggle')
         readings = []
         for boot in range(1, 4):
             phase(f'Begin fresh installed-system benchmark boot {boot}/3')
@@ -548,7 +655,7 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
             guest.root(password)
             root_state(guest, output, f'boot-{boot}')
             network(guest, output, f'boot-{boot}')
-            desktop(guest, password, output, f'boot-{boot}')
+            desktop(guest, password, output, f'boot-{boot}', auto_start=True)
             readings.append(memory(guest, output, boot))
             # Preserve each reading even if a later reboot or measurement fails.
             result['memory_readings'] = readings
@@ -579,7 +686,7 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         (output / 'memory.json').write_text(json.dumps({'configuration': CONFIG, 'readings': result.get('memory_readings', []), 'summary': result.get('memory')}, indent=2) + '\n')
         report = ['# Blue Mess Edition VM verification', '', f"Result: **{result['status'].upper()}**", '',
                   'Reference: amd64, 1 GiB RAM, 2 qemu64 vCPUs, pc-q35-8.2, TCG, std VGA, 1024×768.',
-                  'Disk-only Openbox desktop with one idle xterm/ash; normal delivered services and working networking.', '',
+                  'Disk-only Openbox desktop with XFCE panel/power manager and one idle xterm/ash; normal delivered services and working networking.', '',
                   '## Completed assertions', '']
         report += [f'- {check}' for check in result['checks']]
         report += ['', '## Desktop memory', '']
