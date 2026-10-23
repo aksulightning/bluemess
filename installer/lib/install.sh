@@ -154,12 +154,14 @@ EOF
     bme_run mkfs.fat -F 32 -n BME_EFI "$BME_ESP"
     bme_run mkfs.ext4 -F -L BME_ROOT "$BME_ROOT"
     mkdir -p "$BME_TARGET"
-    bme_run mount "$BME_ROOT" "$BME_TARGET"
+    # These filesystems were just created. Do not rely on udev-backed type
+    # detection: partition metadata can be available before filesystem metadata.
+    bme_run mount -t ext4 "$BME_ROOT" "$BME_TARGET"
     BME_MOUNTED=1
     bme_log 'Extracting clean installed-system payload...'
     bme_run tar --zstd --numeric-owner --xattrs --acls -xpf "$BME_MEDIA/bme/rootfs.tar.zst" -C "$BME_TARGET"
     mkdir -p "$BME_TARGET/boot/efi"
-    bme_run mount "$BME_ESP" "$BME_TARGET/boot/efi"
+    bme_run mount -t vfat "$BME_ESP" "$BME_TARGET/boot/efi"
     bme_root_uuid=$(blkid -s UUID -o value "$BME_ROOT")
     bme_efi_uuid=$(blkid -s UUID -o value "$BME_ESP")
     [ -n "$bme_root_uuid" ] && [ -n "$bme_efi_uuid" ] || bme_die 'Cannot read filesystem UUIDs.'

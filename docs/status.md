@@ -1,5 +1,19 @@
 # Implementation record
 
+## 2026-10-23: installer mount correction (not VM-validated)
+
+- Latest PR run 39808322031 successfully booted the live installer, then failed
+  mounting /dev/vda2 immediately after successful ext4 formatting. The engine
+  log reports a SquashFS superblock error; payload extraction never began.
+- The installer now specifies ext4 for the root mount and vfat for the ESP.
+  This removes automatic filesystem detection from the format/mount boundary.
+  util-linux 2.42.4 can accept udev partition tags without a filesystem type
+  instead of probing the newly formatted device; that mechanism is consistent
+  with the failure, but the run did not capture the udev database to prove it.
+- Only shell syntax and the focused diff were checked for this correction.
+  Docker, QEMU and BusyBox are unavailable locally. A real offline VM install
+  remains required; desktop and memory acceptance remain unmeasured.
+
 ## 2026-10-22
 
 - Repository was empty. Initialized default branch with an explicit unvalidated
