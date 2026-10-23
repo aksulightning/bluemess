@@ -1,5 +1,20 @@
 # Implementation record
 
+## 2026-10-23: first replaceable alpha release
+
+- Push run 40001104011 and PR run 40001110594 completed successfully, including
+  artifact finalization and validated ISO upload. The tag-only release job was
+  skipped on those branch/PR events.
+- Successful pushes to feat/blue-mess-edition now publish v0.1.0-alpha.1 as the
+  first experimental prerelease. Only that named prerelease is replaceable:
+  delete its release/tag, upload the new validated artifacts to a draft, then
+  publish it as a prerelease. Existing non-prereleases are protected.
+- Release notes identify its experimental status, supported hardware scope,
+  destructive installation, mutable assets, source commit and validation run.
+  Version-tag releases retain their existing no-overwrite policy.
+- YAML and release-script Bash syntax were checked. Actual publication must be
+  confirmed by the next successful push run and release asset list.
+
 ## 2026-10-23: artifact finalization permissions
 
 - The 300 MiB candidate reached artifact finalization, where the host runner

@@ -11,6 +11,12 @@ acceptance target, not a measured claim or minimum physical RAM requirement.
 
 ## Download and verify
 
+The first experimental release is [v0.1.0-alpha.1](https://github.com/aksulightning/bluemess/releases/tag/v0.1.0-alpha.1).
+It is an **alpha for testing**, not a stable release. Each successful build of
+`feat/blue-mess-edition` deletes and recreates this prerelease with the newly
+validated ISO and reports. Its assets and checksums can change: download the ISO
+and `SHA256SUMS` together. Version-tag releases retain their original assets.
+
 Open [Actions](https://github.com/aksulightning/bluemess/actions/workflows/iso.yml)
 and select a successful **Build and verify installer ISO** run. Download its
 `blue-mess-edition-<version>-amd64-validated` artifact and extract the ZIP. GitHub

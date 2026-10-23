@@ -93,7 +93,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
   release:
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/feat/blue-mess-edition' || startsWith(github.ref, 'refs/tags/v'))
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -104,21 +104,56 @@ jobs:
         with:
           name: blue-mess-edition-${{ needs.build.outputs.version }}-amd64-validated
           path: release
-      - name: Verify tested bytes and publish existing tag
+      - name: Verify tested bytes and publish release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           cd release
           sha256sum -c SHA256SUMS
-          # Require the push tag to exist; refuse an existing release (no clobber).
-          gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > /dev/null
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo 'Release already exists; refusing to overwrite assets' >&2
-            exit 1
-          fi
           mapfile -d '' -t assets < <(find . -type f -print0)
-          gh release create "$RELEASE_TAG" --verify-tag --title "Blue Mess Edition $RELEASE_TAG" \
-            --notes 'UEFI amd64 installer. See bundled verification and memory reports. Verify SHA256SUMS before use.' \
-            "${assets[@]}"
+          if [[ "$REF_TYPE" == tag ]]; then
+            # Version-tag releases retain their original assets.
+            gh api "repos/$GH_REPO/git/ref/tags/$REF_NAME" > /dev/null
+            if gh release view "$REF_NAME" >/dev/null 2>&1; then
+              echo 'Version-tag release already exists; refusing to overwrite assets' >&2
+              exit 1
+            fi
+            gh release create "$REF_NAME" --verify-tag --title "Blue Mess Edition $REF_NAME" \
+              --notes 'UEFI amd64 installer. See bundled verification and memory reports. Verify SHA256SUMS before use.' \
+              "${assets[@]}"
+          else
+            # The first experimental release is intentionally replaceable.
+            # Delete only this named prerelease, and only after the build passes.
+            release_tag=v0.1.0-alpha.1
+            if gh release view "$release_tag" >/dev/null 2>&1; then
+              is_prerelease=$(gh api "repos/$GH_REPO/releases/tags/$release_tag" --jq '.prerelease')
+              [[ "$is_prerelease" == true ]] || {
+                echo 'Refusing to replace a release that is not marked prerelease' >&2
+                exit 1
+              }
+              gh release delete "$release_tag" --cleanup-tag --yes
+            fi
+            notes_file=$(mktemp)
+            cat > "$notes_file" <<EOF
+          First experimental release of Blue Mess Edition. This is an alpha for testing, not a stable release.
+
+          UEFI amd64 without Secure Boot; installation erases the selected disk. BIOS, dual boot and encryption are unsupported.
+
+          This prerelease is deleted and recreated after successful builds of feat/blue-mess-edition. Assets and SHA256SUMS may change; download them together and verify the checksum before use.
+
+          This ISO passed offline installation, disk-only boot, rootless Xorg/Openbox, networking/package checks and three desktop memory readings at or below 300 MiB with zero swap. See the attached verification reports for exact readings.
+
+          Source: $SOURCE_COMMIT
+          Validation: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF
+            # Stage all assets in a draft before making the prerelease visible.
+            gh release create "$release_tag" --target "$SOURCE_COMMIT" --draft --prerelease --latest=false \
+              --title 'Blue Mess Edition 0.1.0-alpha.1 — first experimental release' \
+              --notes-file "$notes_file" "${assets[@]}"
+            gh release edit "$release_tag" --draft=false --prerelease --latest=false
+            rm -f "$notes_file"
+          fi
