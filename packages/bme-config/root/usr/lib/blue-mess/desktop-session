@@ -2,6 +2,9 @@
 # Openbox and its desktop companions share one private session bus.
 set -eu
 if [ "${1:-}" != --session-bus ]; then
+    state=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess
+    mkdir -p "$state"
+    exec > "$state/desktop.log" 2>&1
     exec dbus-run-session -- "$0" --session-bus
 fi
 export XDG_CURRENT_DESKTOP=Openbox

@@ -301,6 +301,10 @@ printf '%s\\n' '--- OpenRC boot log ---'
 tail -n 120 /var/log/rc.log
 printf '%s\\n' '--- system messages ---'
 tail -n 120 /var/log/messages
+printf '%s\\n' '--- desktop session log ---'
+tail -n 120 /home/tester/.local/state/blue-mess/desktop.log
+printf '%s\\n' '--- Xorg log ---'
+tail -n 120 /home/tester/.local/share/xorg/Xorg.0.log
 printf '%s\\n' '--- all processes ---'
 ps -eo pid,ppid,user,tty,stat,args
 ''', timeout=30, check=False)
@@ -371,8 +375,23 @@ ps -t tty1 -o pid,ppid,user,tty,stat,args
     guest.run('''n=0; until pgrep -u tester -x openbox >/dev/null; do n=$((n+1)); test "$n" -le 180 || { cat /home/tester/.local/share/xorg/Xorg.0.log; exit 1; }; sleep 1; done''', timeout=240)
     # Select the same resolution on the real guest VGA server on every boot.
     guest.run('runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xrandr -s 1024x768')
-    if not guest.run('pgrep -u tester -x xterm || true').strip():
-        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'}, {'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 't'}], 'hold-time': 100})
+    # Process creation precedes Openbox's keyboard grabs. Wait for the real
+    # window-manager property and panel before delivering the terminal shortcut.
+    guest.run('''set -eu
+n=0
+until runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xprop -root _NET_SUPPORTING_WM_CHECK | grep -Eq 'window id # 0x[0-9a-f]+'; do
+    n=$((n+1)); test "$n" -le 60; sleep 1
+done
+n=0; until pgrep -u tester -x xfce4-panel >/dev/null; do n=$((n+1)); test "$n" -le 60; sleep 1; done
+''', timeout=150)
+    for attempt in range(3):
+        if guest.run('pgrep -u tester -x xterm || true').strip():
+            break
+        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'}, {'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 't'}], 'hold-time': 200})
+        # A shortcut sent during final startup may precede the keyboard grab.
+        # Wait before retrying, and never send another once the process exists.
+        if guest.run('''n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || break; sleep 1; done; pgrep -u tester -x xterm || true''', timeout=30).strip():
+            break
     facts = guest.run('''set -eu
 n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); test "$n" -le 90; sleep 1; done
 test "$(pgrep -u tester -x xterm | wc -l)" -eq 1

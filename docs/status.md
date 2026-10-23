@@ -205,3 +205,14 @@
   the path from the selected package contents and added build assertions for
   every declared native-service command in both roots. No desktop or RAM result
   is claimed for this failed candidate.
+
+### First expanded desktop VM run
+
+- Run 40022621472 built the ISO, completed the offline install and booted the
+  installed system. Xorg, Openbox, the panel, power manager, lxpolkit, UPower and
+  polkitd were present; the screenshot showed the configured bottom panel.
+- Verification stopped waiting for xterm after the initial keyboard shortcut.
+  Added a window-manager readiness check and bounded shortcut delivery retries,
+  plus persistent desktop-session output and Xorg-log failure diagnostics.
+  Desktop interaction, toolchain, auto-start and memory acceptance still need
+  the corrected run; no new validated release is claimed.
