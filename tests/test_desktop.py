@@ -37,6 +37,9 @@ class DesktopCommand(unittest.TestCase):
         for value in ('true', 'false'):
             self.assertEqual(self.run_command('auto-start', value).returncode, 0)
             self.assertIn(value, self.run_command('status').stdout)
+        self.run_command('auto-start', 'true')
+        self.assertEqual((self.home / '.profile').read_text().count('# Blue Mess desktop login hook'), 1)
+        self.run_command('auto-start', 'false')
         self.assertNotEqual(self.run_command('auto-start', 'yes').returncode, 0)
         self.assertIn('false', self.run_command('status').stdout)
         self.assertNotEqual(self.run_command('auto-start', 'true', TEST_UID='0').returncode, 0)

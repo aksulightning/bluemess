@@ -5,7 +5,7 @@
 - Added user commands for persistent tty1 auto-start, status and manual desktop
   startup, with non-root/tty/display guards and default false. No autologin or
   automatic logout is introduced. Existing accounts can opt in via the packaged
-  login hook and session helper without replacing their own profiles.
+  user-profile hook and session helper without replacing their own profiles.
 - The Blue Mess session runs Openbox, one bottom XFCE panel, power manager and
   lxpolkit in one private D-Bus session. Companion processes stop on logout.
   Missing XFCE user settings are seeded without overwriting existing choices.
@@ -216,3 +216,7 @@
   plus persistent desktop-session output and Xorg-log failure diagnostics.
   Desktop interaction, toolchain, auto-start and memory acceptance still need
   the corrected run; no new validated release is claimed.
+
+- Login ordering review moved the guarded startup hook to the end of the user
+  profile. Enabling auto-start appends the marked block once for older users;
+  this preserves their settings and loads PATH/XDG configuration before X.
