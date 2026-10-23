@@ -53,10 +53,14 @@ jobs:
           docker run --rm --privileged -v "$PWD:/src" bme-builder -c 'python3 vm/verify.py --iso out/blue-mess-edition-${{ steps.version.outputs.version }}-amd64.iso --output out/verification'
       - name: Mark verified artifact
         run: |
-          python3 build/validate-results.py out
-          cd out
-          sha256sum -c SHA256SUMS
-          tar --zstd --exclude=verification/work -cf diagnostics.tar.zst logs verification
+          # Build and VM outputs belong to the container's root user. Finalize
+          # them with the same identity, including private diagnostic files.
+          docker run --rm -v "$PWD:/src" bme-builder -euo pipefail -c '
+            python3 build/validate-results.py out
+            cd out
+            sha256sum -c SHA256SUMS
+            tar --zstd --exclude=verification/work -cf diagnostics.tar.zst logs verification
+          '
       - name: Upload validated download
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

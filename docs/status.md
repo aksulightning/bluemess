@@ -1,5 +1,15 @@
 # Implementation record
 
+## 2026-10-23: artifact finalization permissions
+
+- The 300 MiB candidate reached artifact finalization, where the host runner
+  could not update out/build-metadata.json created by the root build container.
+- Validation, checksum verification and diagnostic archive creation now run
+  inside the same builder image as root. This also permits reading private
+  diagnostic files while packaging, without broadening their permissions.
+- The workflow change was checked for YAML and embedded Bash syntax. A fresh
+  hosted run must confirm validated artifact upload before delivery is claimed.
+
 ## 2026-10-23: desktop acceptance budget changed to 300 MiB
 
 - Run 39978729045 passed USB boot, offline installation, disk-only startup,
