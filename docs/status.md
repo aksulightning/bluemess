@@ -1,5 +1,21 @@
 # Implementation record
 
+## 2026-10-23: restore Openbox window interactions
+
+- The first alpha's custom Openbox configuration defined only the desktop
+  right-click menu. Window move/resize, click-to-focus and titlebar button
+  bindings were missing; starting Xorg/Openbox did not exercise these actions.
+- Added titlebar drag, Alt-left drag, edge/corner resize, Alt-right drag,
+  focus/raise, window menu, minimize/maximize/close and titlebar double-click.
+  Alt+F7/Alt+F8 provide keyboard move/resize. The root menu is preserved.
+- XML parsing and the focused binding configuration were checked locally.
+  Interactive dragging has not been exercised locally; hosted VM acceptance
+  still checks desktop startup, not a real mouse drag.
+- Existing home directories retain their user configuration. The fix is in the
+  packaged skeleton for new installations/accounts; an existing session can
+  restore Debian's default rc.xml from /etc/xdg/openbox/rc.xml and reconfigure
+  Openbox to recover working window controls immediately.
+
 ## 2026-10-23: first replaceable alpha release
 
 - Push run 40001104011 and PR run 40001110594 completed successfully, including
