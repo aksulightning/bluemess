@@ -1,5 +1,21 @@
 # Implementation record
 
+## 2026-10-23: desktop acceptance budget changed to 300 MiB
+
+- Run 39978729045 passed USB boot, offline installation, disk-only startup,
+  networking/package checks, rootless Xorg/Openbox and three real reboots.
+  It failed the original 150 MiB memory budget: 274.18359375, 275.203125 and
+  260.01953125 MiB, with zero swap used on every boot.
+- The approved desktop idle acceptance budget is now 300 MiB on every boot.
+  This is a requirement change, not a reduction in measured memory use. The
+  metric, reference VM, 60-second settling period, normal services, three boots
+  and zero-swap requirement are unchanged. Historical results remain failed
+  under their original 150 MiB requirement.
+- The threshold is defined once in vm/benchmark.py and used by measurement,
+  reporting and publication validation. Existing boundary tests are updated
+  for exactly 300 MiB and one KiB over; documentation reflects the new budget.
+- A fresh Actions run is required before a candidate receives validated status.
+
 ## 2026-10-23: installer mount correction (not VM-validated)
 
 - Latest PR run 39808322031 successfully booted the live installer, then failed

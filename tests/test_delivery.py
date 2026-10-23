@@ -24,7 +24,7 @@ class DeliveryGate(unittest.TestCase):
         (root / 'verification/results.json').write_text(json.dumps({
             'status': 'passed', 'iso': 'fixture.iso',
             'iso_sha256': hashlib.sha256((root / 'fixture.iso').read_bytes()).hexdigest()}))
-        readings = [{'MemTotal_kib': 1024000, 'MemAvailable_kib': 870400,
+        readings = [{'MemTotal_kib': 1024000, 'MemAvailable_kib': 716800,
                      'SwapUsed_kib': 0} for _ in range(3)]
         (root / 'verification/memory.json').write_text(json.dumps({'readings': readings}))
 
@@ -56,7 +56,7 @@ class DeliveryGate(unittest.TestCase):
             self.assertNotEqual(self.run_gate(root).returncode, 0)
 
     def test_partial_or_over_budget_measurements_cannot_publish(self):
-        for readings in ([], [{'MemTotal_kib': 1024000, 'MemAvailable_kib': 870399,
+        for readings in ([], [{'MemTotal_kib': 1024000, 'MemAvailable_kib': 716799,
                               'SwapUsed_kib': 0}] * 3):
             with self.subTest(readings=readings), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)

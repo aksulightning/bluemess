@@ -22,14 +22,14 @@ import sys
 import time
 import traceback
 
-from benchmark import parse_meminfo, summarize
+from benchmark import MEMORY_LIMIT_MIB, parse_meminfo, summarize
 
 CONFIG = {'architecture': 'amd64', 'ram_MiB': 1024, 'vcpus': 2,
           'machine': 'pc-q35-8.2', 'cpu': 'qemu64', 'acceleration': 'tcg',
           'graphics': 'std VGA', 'resolution': '1024x768',
           'settle_seconds': 60, 'fresh_boots': 3, 'swap_used_kib': 0,
           'metric': '(MemTotal_kib - MemAvailable_kib) / 1024',
-          'threshold_MiB': 150}
+          'threshold_MiB': MEMORY_LIMIT_MIB}
 
 
 def phase(message):
@@ -559,7 +559,7 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         result['checks'].append('Three real reboots preserve disk and UEFI variables; final clean poweroff')
         if not result['memory']['accepted']:
             raise Failure('Desktop RAM acceptance failed; raw readings and process PSS remain visible')
-        result['checks'].append('All three unrounded memory readings <=150 MiB and zero swap used')
+        result['checks'].append(f'All three unrounded memory readings <={MEMORY_LIMIT_MIB} MiB and zero swap used')
         result['status'] = 'passed'
     except Exception as exc:
         result['error'] = str(exc)

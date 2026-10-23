@@ -2,6 +2,9 @@
 from decimal import Decimal
 
 
+MEMORY_LIMIT_MIB = 300
+
+
 def parse_meminfo(text):
     values = {}
     for line in text.splitlines():
@@ -23,7 +26,7 @@ def parse_meminfo(text):
     return {'MemTotal_kib': values['MemTotal'],
             'MemAvailable_kib': values['MemAvailable'],
             'SwapUsed_kib': swap_used, 'used_MiB': str(used),
-            'accepted': used <= Decimal(150) and swap_used == 0}
+            'accepted': used <= Decimal(MEMORY_LIMIT_MIB) and swap_used == 0}
 
 
 def summarize(readings):

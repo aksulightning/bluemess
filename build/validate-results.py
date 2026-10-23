@@ -3,6 +3,10 @@ import hashlib
 import json
 import pathlib
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'vm'))
+from benchmark import MEMORY_LIMIT_MIB
+
 out = pathlib.Path(sys.argv[1])
 for name in ('SHA256SUMS', 'target-packages.tsv', 'installer-packages.tsv',
              'build-tools.tsv', 'build-metadata.json', 'build-metadata.txt',
@@ -21,7 +25,7 @@ if digest != verification['iso_sha256']:
     raise SystemExit('Verification report belongs to different ISO bytes')
 memory = json.loads((out / 'verification/memory.json').read_text())
 readings = memory['readings']
-if len(readings) != 3 or any((r['MemTotal_kib'] - r['MemAvailable_kib']) / 1024 > 150 or r['SwapUsed_kib'] != 0 for r in readings):
+if len(readings) != 3 or any((r['MemTotal_kib'] - r['MemAvailable_kib']) / 1024 > MEMORY_LIMIT_MIB or r['SwapUsed_kib'] != 0 for r in readings):
     raise SystemExit('Three-boot memory acceptance failed')
 metadata = json.loads((out / 'build-metadata.json').read_text())
 metadata['validated'] = True

@@ -6,7 +6,7 @@ panel, compositor, indexing service, or automatic desktop application startup.
 
 **Development status:** first implementation. A specific image is validated only
 when its Actions run passes all required checks. Consult
-[the status record](docs/status.md) and that run before using an image. The 150 MiB desktop idle budget is an
+[the status record](docs/status.md) and that run before using an image. The 300 MiB desktop idle budget is an
 acceptance target, not a measured claim or minimum physical RAM requirement.
 
 ## Download and verify
