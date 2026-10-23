@@ -450,52 +450,56 @@ exit 1
     top = int(extents.split('=')[1].split(',')[2])
     if top <= 0:
         raise Failure('Test xterm has no titlebar to drag')
-    try:
-        def mouse(events):
-            guest.qmp.command('input-send-event', {'events': events})
-            time.sleep(.2)
-
-        # Place the pointer with Xlib so host/guest acceleration cannot put
-        # the initial click outside the titlebar. The drag itself is real QMP
-        # mouse input. Python is already required by Debian's Openbox package;
-        # this transient probe does not add a guest helper or startup hook.
-        pointer_x = before[0] + min(80, before[2] // 2)
-        pointer_y = before[1] - max(1, top // 2)
-        warp = f"""import ctypes as c
+    # Use one XTEST input device for positioning, pressing and motion. Mixing
+    # XWarpPointer with a separate emulated PS/2 device can move the cursor at
+    # the first button event. These are real pointer events consumed by Openbox,
+    # not a window-manager request to move the window programmatically.
+    pointer_x = before[0] + min(80, before[2] // 2)
+    pointer_y = before[1] - max(1, top // 2)
+    drag = f"""import ctypes as c, time
 x = c.CDLL('libX11.so.6')
+t = c.CDLL('libXtst.so.6')
 x.XOpenDisplay.restype = c.c_void_p
-x.XDefaultRootWindow.argtypes = [c.c_void_p]
-x.XDefaultRootWindow.restype = c.c_ulong
-x.XWarpPointer.argtypes = [c.c_void_p, c.c_ulong, c.c_ulong, c.c_int, c.c_int, c.c_uint, c.c_uint, c.c_int, c.c_int]
 x.XSync.argtypes = [c.c_void_p, c.c_int]
 x.XCloseDisplay.argtypes = [c.c_void_p]
+t.XTestFakeMotionEvent.argtypes = [c.c_void_p, c.c_int, c.c_int, c.c_int, c.c_ulong]
+t.XTestFakeButtonEvent.argtypes = [c.c_void_p, c.c_uint, c.c_int, c.c_ulong]
 d = x.XOpenDisplay(None)
 assert d, 'Cannot open the real X display'
-x.XWarpPointer(d, 0, x.XDefaultRootWindow(d), 0, 0, 0, 0, {pointer_x}, {pointer_y})
-x.XSync(d, 0)
-x.XCloseDisplay(d)
+def flush():
+    x.XSync(d, 0)
+    time.sleep(.2)
+try:
+    assert t.XTestFakeMotionEvent(d, 0, {pointer_x}, {pointer_y}, 0)
+    flush()
+    assert t.XTestFakeButtonEvent(d, 1, 1, 0)
+    flush()
+    for step in range(1, 9):
+        assert t.XTestFakeMotionEvent(d, 0, {pointer_x} + step * 6, {pointer_y} + step * 3, 0)
+        flush()
+finally:
+    t.XTestFakeButtonEvent(d, 1, 0, 0)
+    flush()
+    x.XCloseDisplay(d)
 """
-        guest.run(xenv + 'python3 -c ' + shlex.quote(warp))
-        mouse([{'type': 'btn', 'data': {'button': 'left', 'down': True}}])
-        mouse([{'type': 'rel', 'data': {'axis': 'x', 'value': 48}},
-               {'type': 'rel', 'data': {'axis': 'y', 'value': 24}}])
-        mouse([{'type': 'btn', 'data': {'button': 'left', 'down': False}}])
-        after_move = geometry()
-        if abs(after_move[0] - before[0]) < 20 or abs(after_move[1] - before[1]) < 10:
-            raise Failure(f'Titlebar drag did not move xterm: {before} -> {after_move}')
-        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 'f8'}], 'hold-time': 100})
-        time.sleep(.3)
-        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'right'}], 'hold-time': 100})
-        time.sleep(.3)
-        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ret'}], 'hold-time': 100})
-        time.sleep(.3)
-        after_resize = geometry()
-        if after_resize[2] <= after_move[2]:
-            raise Failure(f'Keyboard resize did not widen xterm: {after_move} -> {after_resize}')
-        record(output, 'window-interactions.json', json.dumps({'window': window, 'before': before,
-               'after_titlebar_drag': after_move, 'after_keyboard_resize': after_resize}, indent=2))
-    finally:
-        guest.qmp.command('input-send-event', {'events': [{'type': 'btn', 'data': {'button': 'left', 'down': False}}]})
+    record(output, 'openbox-tested-config.xml', guest.run('cat /home/tester/.config/openbox/rc.xml'))
+    guest.run(xenv + 'python3 -c ' + shlex.quote(drag))
+    after_move = geometry()
+    facts = {'window': window, 'before': before, 'after_titlebar_drag': after_move}
+    record(output, 'window-interactions.json', json.dumps(facts, indent=2))
+    if abs(after_move[0] - before[0]) < 20 or abs(after_move[1] - before[1]) < 10:
+        raise Failure(f'Titlebar drag did not move xterm: {before} -> {after_move}')
+    guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 'f8'}], 'hold-time': 200})
+    time.sleep(.5)
+    guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'right'}], 'hold-time': 200})
+    time.sleep(.5)
+    guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ret'}], 'hold-time': 200})
+    time.sleep(.5)
+    after_resize = geometry()
+    facts['after_keyboard_resize'] = after_resize
+    record(output, 'window-interactions.json', json.dumps(facts, indent=2))
+    if after_resize[2] <= after_move[2]:
+        raise Failure(f'Keyboard resize did not widen xterm: {after_move} -> {after_resize}')
 
 
 def memory(guest, output, boot):
@@ -647,7 +651,7 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         desktop(guest, password, output, 'verification')
         result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xterm/ash')
         window_interactions(guest, output)
-        result['checks'].append('Actual QMP titlebar drag moves the xterm window and Alt+F8 keyboard resizing changes its width')
+        result['checks'].append('Actual XTEST titlebar drag moves the xterm window and Alt+F8 keyboard resizing changes its width')
         phase('Verify desktop logout cleans up its companion processes and returns to tty1')
         record(output, 'desktop-logout.log', guest.run('''set -eu
 runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit

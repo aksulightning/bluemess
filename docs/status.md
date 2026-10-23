@@ -220,3 +220,11 @@
 - Login ordering review moved the guarded startup hook to the end of the user
   profile. Enabling auto-start appends the marked block once for older users;
   this preserves their settings and loads PATH/XDG configuration before X.
+
+- Run 40024901777 passed panel/power-manager/UPower checks, disabled idle display
+  blanking and terminal shortcut activation. The new mouse probe failed without
+  moving the window. It mixed an Xlib pointer warp with emulated PS/2 events;
+  the corrected probe uses XTEST for the entire pointer gesture on the real
+  Xorg desktop, preserving active Openbox config and geometry on failure. It
+  does not move windows through a window-manager API. Keyboard resize remains
+  real QMP input. Subsequent logout/toolchain/auto-start/RAM checks are pending.
