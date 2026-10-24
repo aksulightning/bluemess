@@ -1,5 +1,19 @@
 # Implementation record
 
+## 2026-10-24: add independent, untested ISO build
+
+- Added a separate `.github/workflows/build-iso.yml` on branch pushes and
+  manual dispatch (after merge to the default branch). It runs the pinned
+  builder and ISO assembly, bypassing static checks, QEMU verification,
+  the memory gate, and release publication. It does not depend on results
+  of the existing verified workflow.
+- A successfully assembled ISO is uploaded with an unmistakable
+  `-UNTESTED` artifact name together with the checksum and build records.
+  If image assembly itself fails, only the available diagnostics are kept.
+  The original `iso.yml` acceptance and release requirements stay intact.
+- The workflow has not yet been exercised by a hosted run. A build-only
+  artifact is not evidence of a bootable or installable ISO.
+
 ## 2026-10-24: align publication-gate fixtures with 350 MiB
 
 - The static validation step failed after the memory-limit update because

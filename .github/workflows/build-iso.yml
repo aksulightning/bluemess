@@ -1,0 +1,82 @@
+# Development-only artifact. No test, VM validation, or release publication.
+name: Build installer ISO (untested)
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iso-build-only-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Select candidate version
+        id: version
+        shell: bash
+        run: |
+          version=0.1.0-dev.${GITHUB_SHA:0:12}
+          [[ "$version" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+~-]*$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build controlled Debian environment
+        run: |
+          mkdir -p out/logs
+          set -o pipefail
+          source build/inputs.env
+          for attempt in 1 2 3; do
+            if docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile . 2>&1 | tee -a out/logs/container.log; then break; fi
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            sleep "$((attempt * 5))"
+          done
+          docker image inspect bme-builder > out/builder-image.json
+      - name: Assemble ISO (no tests)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm --privileged -e VERSION -e SOURCE_COMMIT="$GITHUB_SHA" -v "$PWD:/src" bme-builder build/build.sh
+          test -s "out/blue-mess-edition-$VERSION-amd64.iso"
+          (cd out && sha256sum -c SHA256SUMS)
+      - name: Upload untested ISO candidate
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: blue-mess-edition-${{ steps.version.outputs.version }}-amd64-UNTESTED
+          path: |
+            out/*.iso
+            out/SHA256SUMS
+            out/*packages.tsv
+            out/build-*
+            out/builder-image.json
+            out/repositories.list
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Explain candidate status
+        run: |
+          {
+            echo '## UNTESTED ISO candidate'
+            echo
+            echo 'This artifact was assembled without static tests, QEMU installation/boot verification, or the three-boot RAM gate.'
+            echo 'A successful build **does not** imply a working installation or validated release.'
+            echo 'Download the UNTESTED artifact from this Actions run for development testing only.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: blue-mess-build-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/logs/
+            out/build-metadata.*
+          compression-level: 6
+          retention-days: 14
+          if-no-files-found: warn

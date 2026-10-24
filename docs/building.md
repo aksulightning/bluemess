@@ -20,6 +20,22 @@ reproducibility. To refresh inputs, update `build/inputs.env` and deliberately r
 Debian base-image digest in `build/Dockerfile` when needed, inspect the package
 resolution and integration changes, and pass the complete VM/benchmark suite.
 
+## Separate ISO-only workflow (unverified)
+
+`.github/workflows/build-iso.yml` assembles an ISO using the same pinned
+builder image and `build/build.sh` as the verified workflow. It deliberately
+does **not** call static checks, VM tests, or `build/validate-results.py`.
+It runs independently on pushes to main and feat/fix branches; manual
+dispatch is available after the workflow is on the default branch.
+
+On successful assembly and checksum verification it uploads an Actions artifact
+whose name ends in `-UNTESTED`, with the ISO, checksum and build metadata.
+It does not set `validated=true`, does not publish a GitHub Release and never
+provides a `-validated` artifact. Build diagnostics are saved if assembly
+fails. This is a convenience for development, not an alternative acceptance
+or release route: a functioning ISO still cannot be produced if the build
+process itself fails.
+
 For a local build on a disposable Linux development machine with Docker:
 
 ```sh

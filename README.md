@@ -33,6 +33,26 @@ Only a run that passed offline installation, boot from installed disk, actual
 Xorg/Openbox session tests, package checks, and the three-boot memory benchmark
 receives the validated artifact name. A failed memory target blocks publication.
 
+### ISO without tests (development only)
+
+[Build installer ISO (untested)](https://github.com/aksulightning/bluemess/actions/workflows/build-iso.yml)
+is a separate workflow that assembles the ISO without running `build/check.sh`,
+`vm/verify.py` or the release validation gate. It runs on pushes to `main`,
+`feat/**` and `fix/**` independently of the verified workflow. Manual
+`workflow_dispatch` runs become available after the workflow exists on the
+default branch.
+
+When ISO assembly succeeds, the run uploads a
+`blue-mess-edition-<version>-amd64-UNTESTED` artifact containing the ISO,
+`SHA256SUMS`, and build provenance. Even if the full test workflow fails,
+this artifact is available. An unsuccessful ISO assembly cannot produce a
+usable ISO; its build logs are preserved instead.
+
+**UNTESTED means no boot, installation, desktop or memory acceptance has
+been established.** It is not a validated download, does not replace the
+alpha release and should be used only for development testing. Verify its
+checksum before trying it on disposable media or a VM.
+
 ## Install
 
 Supported initial scope: **amd64 UEFI**, GPT, one FAT32 EFI System Partition and
