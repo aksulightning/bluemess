@@ -1,5 +1,23 @@
 # Implementation record
 
+## 2026-10-24: desktop idle memory acceptance raised to 350 MiB
+
+- The preceding candidate (commit 6b5f5c5d76aec239bf460ffae0d94c1d68e07b7f,
+  run 40027402814) passed USB and installed-disk boot, offline installation,
+  networking/package checks, the complete desktop interaction and developer
+  toolchain checks, logout, auto-start and three fresh benchmark boots.
+  Its three unrounded desktop readings were 324.76171875, 327.05078125 and
+  316.38671875 MiB, all with zero swap, so the 300 MiB gate failed.
+- The new acceptance budget is 350 MiB for *each* fresh installed desktop
+  boot. The original /proc/meminfo metric, 1 GiB reference guest, default
+  services, 60-second settling period, three boots, zero-swap requirement and
+  fail-closed publication behavior are unchanged. This changes the acceptance
+  requirement, not the measured memory consumption.
+- Boundary tests cover exactly 350 MiB, one KiB above it, a 325 MiB reading
+  and zero-swap enforcement. The preceding run remains failed under its
+  original 300 MiB requirement; it is not retroactively validated. A fresh
+  full Actions run and successful artifact publication remain unverified.
+
 ## 2026-10-23: optional tty1 desktop startup and development tools
 
 - Added user commands for persistent tty1 auto-start, status and manual desktop

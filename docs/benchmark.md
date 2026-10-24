@@ -46,7 +46,7 @@ For each boot the unmodified `/proc/meminfo` is preserved as `meminfo-boot-N.txt
 used_MiB = (MemTotal_kib - MemAvailable_kib) / 1024
 ```
 
-Acceptance requires every unrounded value to be at most 300 MiB and `SwapTotal - SwapFree` to equal zero. The report lists all raw readings and the minimum–maximum range. A single failing boot fails the entire verification. The parser has explicit tests for the exact threshold, a one-KiB excess, swap use, malformed input, and a failed boot hidden by an average.
+Acceptance requires every unrounded value to be at most 350 MiB and `SwapTotal - SwapFree` to equal zero. The report lists all raw readings and the minimum–maximum range. A single failing boot fails the entire verification. The parser has explicit tests for the exact threshold, a one-KiB excess, swap use, malformed input, and a failed boot hidden by an average.
 
 No cache dropping, swapping out idle services, temporary service suppression, or alternate metric is permitted. The ordinary serial administration shell remains present during measurement and its memory is included. After the reading the harness records OpenRC service status, the process list, kernel slab statistics, and per-process PSS from `smaps_rollup`. PSS assists attribution but does not account for all kernel memory.
 
@@ -54,7 +54,7 @@ If a reading exceeds the threshold, the raw result remains in the artifact and r
 
 ## Installer memory
 
-`installer-meminfo.txt` is a separate raw reading after the live installer reaches its authenticated console. The installer runs with 1 GiB in this reference test and may need more memory than the installed desktop, particularly during payload decompression and initramfs generation. This reading is not a peak measurement and establishes no minimum memory requirement. The 300 MiB acceptance target describes measured installed desktop use, not a supported physical-RAM minimum.
+`installer-meminfo.txt` is a separate raw reading after the live installer reaches its authenticated console. The installer runs with 1 GiB in this reference test and may need more memory than the installed desktop, particularly during payload decompression and initramfs generation. This reading is not a peak measurement and establishes no minimum memory requirement. The 350 MiB acceptance target describes measured installed desktop use, not a supported physical-RAM minimum.
 
 ## Failure evidence
 

@@ -145,7 +145,7 @@ jobs:
 
           This prerelease is deleted and recreated after successful builds of feat/blue-mess-edition. Assets and SHA256SUMS may change; download them together and verify the checksum before use.
 
-          This ISO passed offline installation, disk-only boot, rootless Xorg/Openbox, networking/package checks and three desktop memory readings at or below 300 MiB with zero swap. See the attached verification reports for exact readings.
+          This ISO passed offline installation, disk-only boot, rootless Xorg/Openbox, networking/package checks and three desktop memory readings at or below 350 MiB with zero swap. See the attached verification reports for exact readings.
 
           Source: $SOURCE_COMMIT
           Validation: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID

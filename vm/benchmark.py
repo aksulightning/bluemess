@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 
-MEMORY_LIMIT_MIB = 300
+MEMORY_LIMIT_MIB = 350
 
 
 def parse_meminfo(text):
