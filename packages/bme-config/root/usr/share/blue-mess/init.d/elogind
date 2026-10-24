@@ -1,0 +1,12 @@
+#!/sbin/openrc-run
+# Native OpenRC service. Debian LSB compatibility metadata is kept separately
+# in /etc/insserv/overrides so lsb2rcconf cannot misclassify this script.
+description="Login and seat management"
+command=/usr/libexec/elogind
+supervisor=supervise-daemon
+pidfile=/run/bme-elogind.pid
+depend() { need dbus udev bme-boot; before bme-getty.tty1 bme-getty.ttyS0; }
+start_pre() {
+    [ -x "$command" ] || { eerror "Missing Debian elogind executable: $command"; return 1; }
+    mkdir -p /run/elogind
+}

@@ -1,0 +1,47 @@
+#!/usr/bin/ash
+# Openbox and its desktop companions share one private session bus.
+set -eu
+if [ "${1:-}" != --session-bus ]; then
+    state=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess
+    mkdir -p "$state"
+    exec > "$state/desktop.log" 2>&1
+    exec dbus-run-session -- "$0" --session-bus
+fi
+export XDG_CURRENT_DESKTOP=Openbox
+export XDG_SESSION_DESKTOP=bluemess
+export DESKTOP_SESSION=bluemess
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+export XDG_CONFIG_HOME="$config_home"
+# Seed only missing XFCE files, including for users of an earlier alpha.
+source=/usr/share/blue-mess/skel/.config/xfce4
+for relative in xfconf/xfce-perchannel-xml/xfce4-panel.xml xfconf/xfce-perchannel-xml/xfce4-power-manager.xml panel/launcher-1/terminal.desktop; do
+    target=$config_home/xfce4/$relative
+    if [ ! -e "$target" ]; then
+        mkdir -p "${target%/*}"
+        cp "$source/$relative" "$target"
+    fi
+done
+xsetroot -solid '#174b88'
+xset s off
+xset s noblank
+# Some X servers have no DPMS extension; screensaver settings still apply.
+xset -dpms 2>/dev/null || :
+children=
+cleanup() {
+    trap - EXIT HUP INT TERM
+    for pid in $children; do kill "$pid" 2>/dev/null || :; done
+    for pid in $children; do wait "$pid" 2>/dev/null || :; done
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+xfce4-panel --disable-wm-check &
+children="$children $!"
+xfce4-power-manager --no-daemon &
+children="$children $!"
+lxpolkit &
+children="$children $!"
+openbox &
+window_manager=$!
+children="$children $window_manager"
+wait "$window_manager"

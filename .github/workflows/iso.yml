@@ -1,0 +1,159 @@
+name: Build and verify installer ISO
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: iso-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: version
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" == tag ]]; then version=${REF_NAME#v}; else version=0.1.0-dev.${GITHUB_SHA:0:12}; fi
+          [[ "$version" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+~-]*$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build controlled Debian environment
+        run: |
+          mkdir -p out/logs
+          set -o pipefail
+          source build/inputs.env
+          for attempt in 1 2 3; do
+            if docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile . 2>&1 | tee -a out/logs/container.log; then break; fi
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            sleep "$((attempt * 5))"
+          done
+          docker image inspect bme-builder > out/builder-image.json
+      - name: Validate sources under BusyBox ash
+        run: |
+          docker run --rm -v "$PWD:/src" bme-builder build/check.sh
+      - name: Build candidate ISO
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm --privileged -e VERSION -e SOURCE_COMMIT="$GITHUB_SHA" -v "$PWD:/src" bme-builder build/build.sh
+      - name: Offline install, installed boot, desktop and three-boot memory test
+        run: |
+          docker run --rm --privileged -v "$PWD:/src" bme-builder -c 'python3 vm/verify.py --iso out/blue-mess-edition-${{ steps.version.outputs.version }}-amd64.iso --output out/verification'
+      - name: Mark verified artifact
+        run: |
+          # Build and VM outputs belong to the container's root user. Finalize
+          # them with the same identity, including private diagnostic files.
+          docker run --rm -v "$PWD:/src" bme-builder -euo pipefail -c '
+            python3 build/validate-results.py out
+            cd out
+            sha256sum -c SHA256SUMS
+            tar --zstd --exclude=verification/work -cf diagnostics.tar.zst logs verification
+          '
+      - name: Upload validated download
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: blue-mess-edition-${{ steps.version.outputs.version }}-amd64-validated
+          path: |
+            out/*.iso
+            out/SHA256SUMS
+            out/*packages.tsv
+            out/build-*
+            out/builder-image.json
+            out/repositories.list
+            out/diagnostics.tar.zst
+            out/verification/*.json
+            out/verification/*.md
+            out/verification/*.txt
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Preserve diagnostics (candidate if failed)
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: blue-mess-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/logs/
+            out/verification/*.*
+            out/*metadata*
+            out/*packages.tsv
+          compression-level: 6
+          retention-days: 14
+          if-no-files-found: error
+  release:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/feat/blue-mess-edition' || startsWith(github.ref, 'refs/tags/v'))
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: blue-mess-edition-${{ needs.build.outputs.version }}-amd64-validated
+          path: release
+      - name: Verify tested bytes and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          cd release
+          sha256sum -c SHA256SUMS
+          mapfile -d '' -t assets < <(find . -type f -print0)
+          if [[ "$REF_TYPE" == tag ]]; then
+            # Version-tag releases retain their original assets.
+            gh api "repos/$GH_REPO/git/ref/tags/$REF_NAME" > /dev/null
+            if gh release view "$REF_NAME" >/dev/null 2>&1; then
+              echo 'Version-tag release already exists; refusing to overwrite assets' >&2
+              exit 1
+            fi
+            gh release create "$REF_NAME" --verify-tag --title "Blue Mess Edition $REF_NAME" \
+              --notes 'UEFI amd64 installer. See bundled verification and memory reports. Verify SHA256SUMS before use.' \
+              "${assets[@]}"
+          else
+            # The first experimental release is intentionally replaceable.
+            # Delete only this named prerelease, and only after the build passes.
+            release_tag=v0.1.0-alpha.1
+            if gh release view "$release_tag" >/dev/null 2>&1; then
+              is_prerelease=$(gh api "repos/$GH_REPO/releases/tags/$release_tag" --jq '.prerelease')
+              [[ "$is_prerelease" == true ]] || {
+                echo 'Refusing to replace a release that is not marked prerelease' >&2
+                exit 1
+              }
+              gh release delete "$release_tag" --cleanup-tag --yes
+            fi
+            notes_file=$(mktemp)
+            cat > "$notes_file" <<EOF
+          First experimental release of Blue Mess Edition. This is an alpha for testing, not a stable release.
+
+          UEFI amd64 without Secure Boot; installation erases the selected disk. BIOS, dual boot and encryption are unsupported.
+
+          This prerelease is deleted and recreated after successful builds of feat/blue-mess-edition. Assets and SHA256SUMS may change; download them together and verify the checksum before use.
+
+          This ISO passed offline installation, disk-only boot, rootless Xorg/Openbox, networking/package checks and three desktop memory readings at or below 350 MiB with zero swap. See the attached verification reports for exact readings.
+
+          Source: $SOURCE_COMMIT
+          Validation: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF
+            # Stage all assets in a draft before making the prerelease visible.
+            gh release create "$release_tag" --target "$SOURCE_COMMIT" --draft --prerelease --latest=false \
+              --title 'Blue Mess Edition 0.1.0-alpha.1 — first experimental release' \
+              --notes-file "$notes_file" "${assets[@]}"
+            gh release edit "$release_tag" --draft=false --prerelease --latest=false
+            rm -f "$notes_file"
+          fi

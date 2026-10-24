@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+description="Authenticated console login"
+supervisor=supervise-daemon
+port="${RC_SVCNAME#bme-getty.}"
+command=/sbin/agetty
+command_args="--noclear ${port} 115200,38400,9600 linux"
+pidfile="/run/${RC_SVCNAME}.pid"
+respawn_delay=2
+depend() { need bme-boot elogind; after bme-network; }
+start_pre() { [ "$port" != "$RC_SVCNAME" ] && [ -c "/dev/$port" ]; }

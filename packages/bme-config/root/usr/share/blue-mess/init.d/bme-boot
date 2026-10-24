@@ -1,0 +1,46 @@
+#!/sbin/openrc-run
+description="Hostname, modules, clock, sysctls and random seed"
+depend() { need bme-localmount udev; before dbus elogind bme-network chrony; }
+start() {
+    ebegin "Setting hostname, modules, clock and entropy"
+    hostname "$(cat /etc/hostname)" || return 1
+    hwclock --hctosys --utc >/dev/null 2>&1 || ewarn "No readable hardware clock"
+    for file in /etc/modules /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
+        [ -f "$file" ] || continue
+        while read -r module rest; do
+            case "$module" in ''|'#'*) continue;; esac
+            modprobe "$module" || ewarn "Could not load $module"
+        done < "$file"
+    done
+    sysctl --system >/dev/null || ewarn "Some sysctl settings were not applied"
+    if [ -s /var/lib/blue-mess/random-seed ]; then
+        cat /var/lib/blue-mess/random-seed > /dev/urandom || return 1
+        rm -f /var/lib/blue-mess/random-seed
+    fi
+    umask 077
+    dd if=/dev/urandom of=/var/lib/blue-mess/random-seed bs=512 count=1 status=none || return 1
+    if [ ! -s /etc/machine-id ]; then
+        # dbus-uuidgen rejects an existing empty file; systemd-style placeholders
+        # are not a valid input to its --ensure implementation.
+        rm -f /etc/machine-id
+        dbus-uuidgen --ensure=/etc/machine-id || return 1
+    fi
+    mkdir -p /var/lib/dbus
+    ln -sf /etc/machine-id /var/lib/dbus/machine-id
+    # Standalone Debian helpers apply packaged system users and runtime paths.
+    # In particular rootless Xorg needs root-owned sticky X11/ICE socket dirs.
+    systemd-sysusers || return 1
+    systemd-tmpfiles --create --remove --boot || return 1
+    [ ! -x /usr/bin/setupcon ] || setupcon --force >/dev/null 2>&1 || ewarn "Console setup unavailable"
+    [ ! -x /usr/sbin/alsactl ] || alsactl restore >/dev/null 2>&1 || :
+    rm -f /run/nologin
+    eend 0
+}
+stop() {
+    ebegin "Saving hardware clock, entropy and audio state"
+    umask 077
+    dd if=/dev/urandom of=/var/lib/blue-mess/random-seed bs=512 count=1 status=none || return 1
+    hwclock --systohc --utc >/dev/null 2>&1 || :
+    [ ! -x /usr/sbin/alsactl ] || alsactl store >/dev/null 2>&1 || :
+    eend 0
+}

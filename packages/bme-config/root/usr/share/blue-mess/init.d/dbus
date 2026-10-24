@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+# Native OpenRC service. Debian LSB compatibility metadata is kept separately
+# in /etc/insserv/overrides so lsb2rcconf cannot misclassify this script.
+description="System D-Bus"
+command=/usr/bin/dbus-daemon
+command_args="--system --nofork --nopidfile"
+supervisor=supervise-daemon
+pidfile=/run/bme-dbus.pid
+depend() { need bme-boot; before elogind; }
+start_pre() { mkdir -p /run/dbus; dbus-uuidgen --ensure=/etc/machine-id; }

@@ -1,0 +1,26 @@
+#!/sbin/openrc-run
+description="Blue Mess writable root and kernel filesystems"
+depend() { before bme-localmount udev; provide mountkernfs; keyword -docker -lxc; }
+start() {
+    ebegin "Preparing kernel filesystems and writable root"
+    mountpoint -q /proc || mount -t proc proc /proc || return 1
+    mountpoint -q /sys || mount -t sysfs sysfs /sys || return 1
+    mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev || return 1
+    mountpoint -q /run || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run || return 1
+    mkdir -p /dev/pts /dev/shm /run/lock /run/user
+    mountpoint -q /dev/pts || mount -t devpts -o gid=5,mode=0620 devpts /dev/pts || return 1
+    mountpoint -q /dev/shm || mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /dev/shm || return 1
+    mount -o remount,rw / || return 1
+    mkdir -p /var/log /var/lib/blue-mess /run/udev
+    chmod 1777 /tmp
+    # agetty/login update an existing utmp file; /run is fresh on every boot.
+    touch /run/utmp || return 1
+    chown root:utmp /run/utmp || return 1
+    chmod 0664 /run/utmp || return 1
+    eend 0
+}
+stop() {
+    # OpenRC still owns the writable rc.log here; final remount is a shutdown
+    # runlevel service after OpenRC closes that logger.
+    sync
+}

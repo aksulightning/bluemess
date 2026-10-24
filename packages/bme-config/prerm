@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+case "$1" in
+remove|deconfigure)
+    for name in dbus elogind chrony udev; do
+        if [ "$(dpkg-divert --listpackage "/etc/init.d/$name")" = bme-config ]; then
+            rm -f "/etc/init.d/$name"
+            dpkg-divert --package bme-config --remove --rename --divert "/usr/share/blue-mess/vendor-init/$name" "/etc/init.d/$name"
+        fi
+    done
+    ;;
+esac

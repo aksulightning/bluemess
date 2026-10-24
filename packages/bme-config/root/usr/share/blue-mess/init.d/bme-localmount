@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+description="Blue Mess local filesystems"
+depend() { need bme-root; after udev; before bme-boot; }
+start() {
+    ebegin "Checking and mounting local filesystems"
+    # initramfs-tools checks the root filesystem before mounting it.
+    fsck -A -R -a -t noopts=_netdev
+    result=$?
+    [ "$result" -le 1 ] || { eend "$result"; return 1; }
+    mount -a -t noproc,nosysfs,nodevtmpfs,nodevpts,notmpfs || return 1
+    eend 0
+}
+stop() {
+    ebegin "Unmounting local filesystems"
+    # killall5 excludes PID 1 and this shutdown session; no SysV init is used.
+    /usr/sbin/killall5 -15 -o "${RC_PID:-1}" || [ "$?" -eq 2 ] || return 1
+    sleep 1
+    /usr/sbin/killall5 -9 -o "${RC_PID:-1}" || [ "$?" -eq 2 ] || return 1
+    sync
+    umount -a -r -t noproc,nosysfs,nodevtmpfs,nodevpts,notmpfs
+    eend $?
+}

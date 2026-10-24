@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+case "$1" in
+configure)
+    /usr/bin/busybox --list | grep -x ash >/dev/null
+    for applet in ash udhcpc syslogd klogd; do
+        /usr/bin/busybox --list | grep -x "$applet" >/dev/null || {
+            echo "Required Debian BusyBox applet missing: $applet" >&2; exit 1;
+        }
+    done
+    add-shell /usr/bin/ash
+    usermod -s /usr/bin/ash root
+    useradd -D -s /usr/bin/ash
+    # Debian's two supported account-creation paths should agree.
+    sed -i '/^[#[:space:]]*DSHELL=/d' /etc/adduser.conf
+    printf '\nDSHELL=/usr/bin/ash\n' >> /etc/adduser.conf
+    # Own all daemon entry points, including future package-maintainer actions.
+    # Divert only vendor paths; our original scripts retain openrc-run.
+    mkdir -p /usr/share/blue-mess/vendor-init /etc/init.d
+    for name in dbus elogind chrony udev; do
+        destination="/usr/share/blue-mess/vendor-init/$name"
+        if ! dpkg-divert --listpackage "/etc/init.d/$name" | grep '^bme-config$' >/dev/null; then
+            dpkg-divert --package bme-config --add --rename --divert "$destination" "/etc/init.d/$name"
+        fi
+        install -m 0755 "/usr/share/blue-mess/init.d/$name" "/etc/init.d/$name"
+    done
+    for path in /usr/share/blue-mess/init.d/bme-*; do
+        install -m 0755 "$path" "/etc/init.d/${path##*/}"
+    done
+    mkdir -p /etc/blue-mess /etc/skel /etc/elogind/logind.conf.d
+    [ -f /etc/blue-mess/network.conf ] || printf 'mode=auto\ninterface=\n' > /etc/blue-mess/network.conf
+    cp -a /usr/share/blue-mess/skel/. /etc/skel/
+    mkdir -p /etc/skel/Documents /etc/skel/Downloads
+    printf '[Login]\nNAutoVTs=0\nReserveVT=0\nIdleAction=ignore\nHandleLidSwitch=suspend\n' > /etc/elogind/logind.conf.d/90-blue-mess.conf
+    # Disable package-specific user services: dbus-run-session owns desktop bus.
+    pam-auth-update --package
+    ;;
+esac
