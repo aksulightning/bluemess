@@ -1,5 +1,17 @@
 # Implementation record
 
+## 2026-10-24: align publication-gate fixtures with 350 MiB
+
+- The static validation step failed after the memory-limit update because
+  tests/test_delivery.py still treated 300 MiB plus one KiB as over budget.
+  Under the new 350 MiB threshold that reading is correctly accepted, so the
+  negative test was obsolete; the release validator itself remains unchanged.
+- The publication-gate fixtures now derive the exact boundary from the shared
+  MEMORY_LIMIT_MIB setting, and assert rejection for one KiB above it, a
+  single failing boot among three, missing readings, and swap usage.
+  The accepted fixture exercises the inclusive limit.
+- Full hosted CI and VM acceptance for the corrected commit are still pending.
+
 ## 2026-10-24: desktop idle memory acceptance raised to 350 MiB
 
 - The preceding candidate (commit 6b5f5c5d76aec239bf460ffae0d94c1d68e07b7f,

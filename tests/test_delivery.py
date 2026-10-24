@@ -8,6 +8,11 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'build/validate-results.py'
+sys.path.insert(0, str(SCRIPT.parents[1] / 'vm'))
+from benchmark import MEMORY_LIMIT_MIB
+
+MEM_TOTAL_KIB = 1024000
+AVAILABLE_AT_LIMIT_KIB = MEM_TOTAL_KIB - MEMORY_LIMIT_MIB * 1024
 
 
 class DeliveryGate(unittest.TestCase):
@@ -24,7 +29,7 @@ class DeliveryGate(unittest.TestCase):
         (root / 'verification/results.json').write_text(json.dumps({
             'status': 'passed', 'iso': 'fixture.iso',
             'iso_sha256': hashlib.sha256((root / 'fixture.iso').read_bytes()).hexdigest()}))
-        readings = [{'MemTotal_kib': 1024000, 'MemAvailable_kib': 716800,
+        readings = [{'MemTotal_kib': MEM_TOTAL_KIB, 'MemAvailable_kib': AVAILABLE_AT_LIMIT_KIB,
                      'SwapUsed_kib': 0} for _ in range(3)]
         (root / 'verification/memory.json').write_text(json.dumps({'readings': readings}))
 
@@ -56,8 +61,13 @@ class DeliveryGate(unittest.TestCase):
             self.assertNotEqual(self.run_gate(root).returncode, 0)
 
     def test_partial_or_over_budget_measurements_cannot_publish(self):
-        for readings in ([], [{'MemTotal_kib': 1024000, 'MemAvailable_kib': 716799,
-                              'SwapUsed_kib': 0}] * 3):
+        at_limit = {'MemTotal_kib': MEM_TOTAL_KIB, 'MemAvailable_kib': AVAILABLE_AT_LIMIT_KIB,
+                    'SwapUsed_kib': 0}
+        over_limit = {**at_limit, 'MemAvailable_kib': AVAILABLE_AT_LIMIT_KIB - 1}
+        swap_used = {**at_limit, 'SwapUsed_kib': 1}
+        for readings in ([], [over_limit] * 3,
+                         [at_limit, over_limit, at_limit],
+                         [at_limit, swap_used, at_limit]):
             with self.subTest(readings=readings), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 self.prepare(root)
