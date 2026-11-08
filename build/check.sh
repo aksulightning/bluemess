@@ -16,6 +16,7 @@ shellcheck -s ash -e SC1091 installer/bme-install installer/lib/install.sh
 # The desktop entry points are shipped without a .sh extension.
 for script in \
     packages/bme-config/root/usr/bin/bluemess-desktop \
+    packages/bme-config/root/usr/bin/bluemess-session-check \
     packages/bme-config/root/usr/bin/bluemess-start-audio \
     packages/bme-config/root/usr/bin/bluemess-fix-audio \
     packages/bme-config/root/usr/bin/bluemess-audio-panel \

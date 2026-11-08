@@ -379,6 +379,11 @@ ps -t tty1 -o pid,ppid,user,tty,stat,args
     if not auto_start:
         guest.qmp.type('bluemess-desktop start\n')
     guest.run('''n=0; until pgrep -u tester -x openbox >/dev/null; do n=$((n+1)); test "$n" -le 180 || { cat /home/tester/.local/share/xorg/Xorg.0.log; exit 1; }; sleep 1; done''', timeout=240)
+    guest.run('''set -eu
+for log in login-check desktop; do
+    grep -Fx 'Blue Mess session check' "/home/tester/.local/state/blue-mess/$log.log"
+done
+''')
     # Select the same resolution on the real guest VGA server on every boot.
     guest.run('runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xrandr -s 1024x768')
     # Process creation precedes Openbox's keyboard grabs. Wait for the real

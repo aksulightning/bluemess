@@ -30,18 +30,22 @@ been established. Installer observations are reported separately by VM tooling.
 ## Local login and seat access
 
 Sign in as your ordinary user on the machine's tty1, then run
-`bluemess-desktop start` from that login. Use these commands in the
-Openbox terminal to check the login and device assignment.
+`bluemess-desktop start` from that login. Run `bluemess-session-check`
+from tty1 or an Openbox terminal to inspect that process's session.
 
-```sh
-loginctl session-status
-loginctl seat-status seat0
-ls -l /dev/dri /dev/snd
-```
+The checker verifies a local, active tty1 session on `seat0` and an
+`XDG_RUNTIME_DIR` matching elogind's path, owned by the user and set to
+mode `0700`. In the desktop it also queries the session D-Bus. It reports
+direct graphics and audio device access, X11 and PulseAudio socket
+information, and any inaccessible dconf runtime directory.
 
-The local session should report `tty1`, `seat0` and `active`. If the
-session is missing, check `rc-service elogind status` and the
-`pam_elogind.so` entry in `/etc/pam.d/common-session`.
+Manual and automatic starts through `bluemess-desktop` record the
+pre-Xorg check in `~/.local/state/blue-mess/login-check.log`. The packaged
+Openbox session records a second check after D-Bus starts in
+`~/.local/state/blue-mess/desktop.log`, including when invoked through
+the default `startx` setup. Set `XDG_STATE_HOME` to choose the parent
+state directory. These checks report issues and let startup proceed.
+For more seat details, run `loginctl seat-status seat0`.
 
 Older Blue Mess builds passed `--resolve-names=never` to udev. This
 skipped the group assignments in Debian's device rules, including

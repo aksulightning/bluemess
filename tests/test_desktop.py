@@ -21,11 +21,13 @@ class DesktopCommand(unittest.TestCase):
             'id': 'echo "${TEST_UID:-1000}"',
             'tty': 'echo "${TEST_TTY:-/dev/tty1}"',
             'startx': 'echo desktop-started',
+            'bluemess-session-check': 'echo login-check-ran; exit "${TEST_CHECK_STATUS:-0}"',
         }.items():
             p = self.bin / name
             p.write_text('#!/bin/sh\n' + body + '\n')
             p.chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home), XDG_CONFIG_HOME=str(self.home / '.config'),
+                        XDG_STATE_HOME=str(self.home / '.local/state'),
                         PATH=str(self.bin) + ':' + os.environ['PATH'], DISPLAY='', WAYLAND_DISPLAY='')
 
     def run_command(self, *args, **env):
@@ -57,3 +59,15 @@ class DesktopCommand(unittest.TestCase):
         self.assertIn('desktop-started', self.run_command('start').stdout)
         for env in ({'TEST_TTY': '/dev/tty2'}, {'TEST_UID': '0'}, {'DISPLAY': ':0'}):
             self.assertNotEqual(self.run_command('start', **env).returncode, 0)
+
+    def test_start_and_auto_start_preserve_failed_login_check(self):
+        log = self.home / '.local/state/blue-mess/login-check.log'
+        self.run_command('auto-start', 'true')
+        for action in ('start', '--login'):
+            with self.subTest(action=action):
+                result = self.run_command(action, TEST_CHECK_STATUS='1')
+                self.assertEqual(result.returncode, 0)
+                self.assertIn('desktop-started', result.stdout)
+                self.assertIn('Login check reported problems', result.stderr)
+                self.assertEqual(log.read_text().strip(), 'login-check-ran')
+                log.unlink()

@@ -1,5 +1,17 @@
 # Implementation record
 
+## 2026-11-08: session checks at desktop startup
+
+- Added `bluemess-session-check` for the active local tty1 session, elogind
+  runtime directory, session D-Bus, and graphics and audio device access.
+  It also reports X11 and PulseAudio sockets and dconf runtime access.
+- Manual and automatic desktop starts record a pre-Xorg report. The
+  packaged Openbox session records a second report after D-Bus starts.
+  Both stages let startup proceed when the check finds a problem.
+- All 26 local tests and the package build passed. Nine simulated cases
+  covered healthy sessions and failures. The VM verifier checks that both
+  reports ran. Hosted VM validation is pending.
+
 ## 2026-11-08: local seat and device permissions
 
 - Removed the native udev service's `--resolve-names=never` option so the

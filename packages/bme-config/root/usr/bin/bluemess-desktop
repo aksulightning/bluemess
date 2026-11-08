@@ -8,6 +8,12 @@ can_start() {
     [ "$(id -u)" -ne 0 ] && [ -z "${DISPLAY:-}" ] &&
         [ -z "${WAYLAND_DISPLAY:-}" ] && [ "$(tty 2>/dev/null)" = /dev/tty1 ]
 }
+check_login() {
+    state=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess
+    if ! mkdir -p "$state" || ! bluemess-session-check > "$state/login-check.log" 2>&1; then
+        printf 'Login check reported problems. See %s/login-check.log.\n' "$state" >&2
+    fi
+}
 case "${1:-}" in
     auto-start)
         [ "$#" -eq 2 ] || { echo 'Usage: bluemess-desktop auto-start true|false' >&2; exit 2; }
@@ -36,12 +42,14 @@ case "${1:-}" in
     start)
         [ "$#" -eq 1 ] || exit 2
         can_start || { echo 'Start the desktop as an ordinary user from tty1, outside an existing desktop.' >&2; exit 1; }
+        check_login
         exec startx "$session"
         ;;
     --login)
         # Called once by the interactive login profile. Returning after X exits
         # leaves the user at the console; it does not log out or restart X.
         if enabled && can_start; then
+            check_login
             startx "$session" || printf '%s\n' 'Desktop failed to start; remaining at the console.' >&2
         fi
         ;;

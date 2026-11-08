@@ -1,0 +1,85 @@
+#!/usr/bin/ash
+# Report the caller's login and desktop environment.
+set -u
+
+failed=0
+problem() {
+    printf 'Problem: %s\n' "$1" >&2
+    failed=1
+}
+
+user_id=$(id -u)
+echo 'Blue Mess session check'
+if [ "$user_id" -eq 0 ]; then
+    problem 'Run this as the ordinary user whose session you want to check.'
+    exit "$failed"
+fi
+
+login_runtime=
+if session=$(timeout 3 loginctl show-session self -p Id -p User -p Seat -p TTY -p Active -p Remote); then
+    printf '%s\n' "$session"
+    for expected in "User=$user_id" Seat=seat0 TTY=tty1 Active=yes Remote=no; do
+        printf '%s\n' "$session" | grep -Fxq "$expected" ||
+            problem "Expected $expected for the local tty1 session."
+    done
+    if ! login_runtime=$(timeout 3 loginctl show-user "$user_id" -p RuntimePath --value) ||
+        [ -z "$login_runtime" ]; then
+        problem 'Elogind did not report a runtime directory for this user.'
+    fi
+else
+    problem 'Elogind could not identify this login session. Check rc-service elogind status and the tty1 login.'
+fi
+
+runtime=${XDG_RUNTIME_DIR:-}
+printf 'XDG_RUNTIME_DIR=%s\n' "${runtime:-unset}"
+case "$runtime" in
+    /*)
+        if [ ! -d "$runtime" ] || [ ! -w "$runtime" ] || [ ! -x "$runtime" ] ||
+            [ "$(stat -Lc '%u:%a' -- "$runtime" 2>/dev/null)" != "$user_id:700" ]; then
+            problem "Runtime directory $runtime must be accessible, owned by UID $user_id and mode 0700."
+        else
+            dconf_dir=$runtime/dconf
+            if [ -e "$dconf_dir" ] && { [ ! -d "$dconf_dir" ] || [ ! -w "$dconf_dir" ] || [ ! -x "$dconf_dir" ]; }; then
+                printf 'Warning: dconf cannot use %s\n' "$dconf_dir"
+            fi
+            if [ -S "$runtime/pulse/native" ]; then
+                printf 'PulseAudio socket exists at %s/pulse/native\n' "$runtime"
+            else
+                echo 'PulseAudio socket is absent. The audio stack starts on demand.'
+            fi
+        fi
+        ;;
+    *) problem 'XDG_RUNTIME_DIR must point to an absolute login runtime directory.' ;;
+esac
+if [ -n "$login_runtime" ] && [ "$runtime" != "$login_runtime" ]; then
+    problem "Elogind expects XDG_RUNTIME_DIR=$login_runtime."
+fi
+
+if [ -n "${DISPLAY:-}" ]; then
+    printf 'DISPLAY=%s\n' "$DISPLAY"
+    if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] &&
+        timeout 3 dbus-send --session --print-reply --dest=org.freedesktop.DBus \
+            /org/freedesktop/DBus org.freedesktop.DBus.ListNames >/dev/null; then
+        echo 'Session D-Bus is reachable.'
+    else
+        problem 'Session D-Bus is unreachable. Start the desktop with bluemess-desktop start from tty1.'
+    fi
+    if [ ! -d /tmp/.X11-unix ] || [ "$(stat -c '%u:%g:%a' /tmp/.X11-unix 2>/dev/null)" != 0:0:1777 ]; then
+        echo 'Warning: /tmp/.X11-unix should be a root-owned directory with mode 1777.'
+    fi
+fi
+
+for device in /dev/dri/card[0-9]* /dev/dri/renderD* /dev/snd/controlC* /dev/snd/pcmC*D*p; do
+    [ -c "$device" ] || continue
+    if [ -r "$device" ] && [ -w "$device" ]; then
+        access=read/write
+    else
+        access=restricted
+    fi
+    printf '%s, direct access %s\n' "$(stat -c '%n %U:%G mode=%a' -- "$device")" "$access"
+done
+
+if [ "$failed" -eq 0 ]; then
+    echo 'Blue Mess session check passed.'
+fi
+exit "$failed"

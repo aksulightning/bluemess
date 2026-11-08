@@ -10,6 +10,8 @@ fi
 export XDG_CURRENT_DESKTOP=Openbox
 export XDG_SESSION_DESKTOP=bluemess
 export DESKTOP_SESSION=bluemess
+# Keep diagnostics available even when a desktop starts with session problems.
+bluemess-session-check || :
 config_home=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CONFIG_HOME="$config_home"
 # Seed only missing XFCE files, including for users of an earlier alpha.
