@@ -15,6 +15,9 @@
   launcher. Simulated audio processes verified startup order, duplicate
   prevention, and cleanup on interruption and process failure. Hardware
   playback through the new launcher has yet to be verified.
+- A follow-up handles an unusable inherited `XDG_RUNTIME_DIR` by checking the
+  existing elogind login directory. Eight simulated cases covered configured
+  paths, fallback, and failure when neither directory is usable.
 
 ## 2026-11-08: commit-tagged ISO prereleases
 

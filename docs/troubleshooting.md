@@ -92,6 +92,14 @@ terminal open while you need audio. Open `pavucontrol` in a second terminal
 to select and unmute the intended output. Press Ctrl+C in the launcher
 terminal to stop the audio processes it started.
 
+The launcher falls back to the existing `/run/user/$(id -u)` login directory
+if `XDG_RUNTIME_DIR` is unusable. If it reports this fallback, run
+`export XDG_RUNTIME_DIR="/run/user/$(id -u)"` in the terminal you use for
+`pavucontrol` as well. If neither directory is usable, check
+`ls -ld "/run/user/$(id -u)"` and `loginctl session-status` from your regular
+user session. Elogind creates and owns the lifecycle of that directory.
+[Debian pam_elogind manual](https://manpages.debian.org/unstable/libpam-elogind/pam_elogind.8.en.html)
+
 The launcher waits for the PipeWire core to answer `pw-cli info 0` before
 starting WirePlumber and `pipewire-pulse`. If manual startup reports
 `Failed to connect to PipeWire` or `Host is down`, start `pipewire` in the

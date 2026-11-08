@@ -8,11 +8,26 @@ if [ "$user_id" -eq 0 ] || [ -z "${DISPLAY:-}" ] || [ -z "${DBUS_SESSION_BUS_ADD
     exit 1
 fi
 
-XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$user_id}
-if [ ! -d "$XDG_RUNTIME_DIR" ] || [ ! -w "$XDG_RUNTIME_DIR" ] ||
-    [ "$(stat -c %u "$XDG_RUNTIME_DIR")" != "$user_id" ]; then
-    echo "No usable session runtime directory at $XDG_RUNTIME_DIR. Log in again from tty1." >&2
-    exit 1
+runtime_dir_is_usable() {
+    case "$1" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    [ -d "$1" ] && [ -w "$1" ] && [ -x "$1" ] &&
+        [ "$(stat -Lc %u -- "$1")" = "$user_id" ]
+}
+
+configured_runtime_dir=${XDG_RUNTIME_DIR:-}
+if ! runtime_dir_is_usable "$configured_runtime_dir"; then
+    XDG_RUNTIME_DIR=/run/user/$user_id
+    if ! runtime_dir_is_usable "$XDG_RUNTIME_DIR"; then
+        printf 'No usable audio runtime directory. Checked XDG_RUNTIME_DIR=%s and %s.\n' \
+            "${configured_runtime_dir:-unset}" "$XDG_RUNTIME_DIR" >&2
+        echo 'Check the directory ownership and your elogind session from tty1.' >&2
+        exit 1
+    fi
+    printf 'Using %s. Set XDG_RUNTIME_DIR to the same path in your audio client terminal.\n' \
+        "$XDG_RUNTIME_DIR"
 fi
 export XDG_RUNTIME_DIR
 
