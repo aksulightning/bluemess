@@ -29,9 +29,16 @@ been established. Installer observations are reported separately by VM tooling.
 
 ## Local login and seat access
 
-Sign in as your ordinary user on the machine's tty1, then run
+Sign in at tuigreet as your ordinary user on the machine's tty1, then run
 `bluemess-desktop start` from that login. Run `bluemess-session-check`
 from tty1 or an Openbox terminal to inspect that process's session.
+
+If tty1 has no greeter, use tty2 or the serial console to log in and check
+`rc-service greetd status` and `/var/log/rc.log`. The installed system uses
+`/etc/greetd/blue-mess.toml` for tty1 and Debian's `/etc/pam.d/greetd` for
+authentication. When upgrading an earlier installation, install `greetd`
+and `tuigreet` before configuring the updated `bme-config` package.
+The package switches the default runlevel to greetd for the next boot.
 
 The checker verifies a local, active tty1 session on `seat0` and an
 `XDG_RUNTIME_DIR` matching elogind's path, owned by the user and set to

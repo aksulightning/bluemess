@@ -26,8 +26,8 @@ Description: Blue Mess Edition native OpenRC integration and user defaults
 CONTROL
 install -m 0755 "$here/bme-config/postinst" "$stage/DEBIAN/postinst"
 install -m 0755 "$here/bme-config/prerm" "$stage/DEBIAN/prerm"
-printf '/etc/apt/apt.conf.d/90blue-mess\n' > "$stage/DEBIAN/conffiles"
-for name in dbus elogind chrony udev; do
+printf '%s\n' /etc/apt/apt.conf.d/90blue-mess /etc/greetd/blue-mess.toml > "$stage/DEBIAN/conffiles"
+for name in dbus elogind chrony udev greetd; do
     printf '/etc/insserv/overrides/%s\n' "$name" >> "$stage/DEBIAN/conffiles"
 done
 dpkg-deb --root-owner-group --build "$stage" "$output/bme-config_${version}_all.deb"

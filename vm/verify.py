@@ -236,10 +236,12 @@ def root_state(guest, output, suffix):
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 rc-status --all
-for service in bme-root udev bme-localmount bme-boot bme-network bme-syslog bme-klog dbus elogind chrony bme-getty.tty1 bme-getty.tty2 bme-getty.ttyS0; do rc-service "$service" status; done
+for service in bme-root udev bme-localmount bme-boot bme-network bme-syslog bme-klog dbus elogind chrony greetd bme-getty.tty2 bme-getty.ttyS0; do rc-service "$service" status; done
+test "$(readlink /etc/runlevels/default/greetd)" = /etc/init.d/greetd
+test ! -L /etc/runlevels/default/bme-getty.tty1
 # State markers alone are insufficient: assert the actual daemon processes.
 ps -eo pid,ppid,user,args
-for daemon in dbus-daemon elogind chronyd; do
+for daemon in dbus-daemon elogind chronyd greetd; do
     pids=$(pgrep -x "$daemon") || { echo "Missing running daemon: $daemon" >&2; exit 1; }
     for pid in $pids; do readlink /proc/"$pid"/exe; done
 done
@@ -250,7 +252,7 @@ for device in /dev/input/event*; do
     test "$(stat -c %G "$device")" = input
 done
 dbus-send --system --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames
-for service in dbus elogind chrony; do
+for service in dbus elogind chrony greetd; do
     test "$(pgrep -fc "^supervise-daemon $service --start ")" -eq 1
 done
 findmnt -n -o FSTYPE /
@@ -301,7 +303,7 @@ for session in $(loginctl list-sessions --no-legend | awk '{print $1}'); do
     loginctl show-session "$session" -p Name -p TTY -p Active -p State -p Remote -p Service -p Class -p Seat
 done
 printf '%s\\n' '--- PAM session configuration ---'
-cat /etc/pam.d/common-session
+cat /etc/pam.d/greetd /etc/pam.d/common-session
 printf '%s\\n' '--- OpenRC boot log ---'
 tail -n 120 /var/log/rc.log
 printf '%s\\n' '--- system messages ---'
@@ -316,39 +318,43 @@ ps -eo pid,ppid,user,tty,stat,args
     record(output, f'console-{suffix}-{stage}.log', facts)
 
 
+def wait_for_greeter(guest, prompt):
+    guest.run(f'''set -eu
+test -c /dev/vcs1
+n=0
+until grep -aiFq {shlex.quote(prompt)} /dev/vcs1 &&
+      ps -t tty1 -o comm= | grep -Eq '^[[:space:]]*tuigreet$'; do
+    n=$((n+1)); test "$n" -le 60 || exit 1; sleep 1
+done
+''', timeout=90)
+
+
 def desktop(guest, password, output, suffix, auto_start=False):
-    phase(f'{suffix}: activate tty1 and capture console before keyboard login')
+    phase(f'{suffix}: activate tty1 and capture console before tuigreet login')
     guest.run('chvt 1')
     console_state(guest, output, suffix, 'before-login')
     try:
-        guest.run('''set -eu
-test -c /dev/vcs1
-n=0
-until grep -aq 'login:' /dev/vcs1 && ps -t tty1 -o comm= | grep -Eq '^[[:space:]]*agetty$'; do
-    n=$((n+1)); test "$n" -le 60 || exit 1; sleep 1
-done
-''', timeout=90)
+        wait_for_greeter(guest, 'Username')
         guest.qmp.type('tester\n')
         # Read the real VT text before sending a secret. This confirms QMP input
-        # reached login and prevents typing a password at a username/shell prompt.
-        guest.run('''set -eu
-n=0
-until grep -aq 'Password:' /dev/vcs1 && ps -t tty1 -o comm= | grep -Eq '^[[:space:]]*login$'; do
-    n=$((n+1)); test "$n" -le 60 || exit 1; sleep 1
-done
-''', timeout=90)
-        phase(f'{suffix}: tty1 displays the real login password prompt')
+        # reached tuigreet and prevents typing a password at a username/shell prompt.
+        wait_for_greeter(guest, 'Password:')
+        phase(f'{suffix}: tuigreet displays the PAM password prompt on tty1')
         guest.qmp.type(password + '\n')
         # Successful password login must produce both a tester-owned ash on tty1
         # and the active PAM/logind login session for that same user and VT.
         # who is retained as evidence but cannot be the gate when utmp is absent.
         tty_login = guest.run('''set -eu
+tester_uid=$(id -u tester)
 n=0
 while :; do
     shell_ok=0
     for pid in $(ps -t tty1 -o pid=,user= | awk '$2 == "tester" {print $1}'); do
         case "$(readlink /proc/"$pid"/exe 2>/dev/null || :)" in */busybox)
-            if tr '\\000' ' ' < /proc/"$pid"/cmdline | grep -Eq '(^|/|-| )ash( |$)'; then shell_ok=1; fi;;
+            if tr '\\000' ' ' < /proc/"$pid"/cmdline | grep -Eq '(^|/|-| )ash( |$)' &&
+               tr '\\000' '\\n' < /proc/"$pid"/environ | grep -Fxq "XDG_RUNTIME_DIR=/run/user/$tester_uid"; then
+                shell_ok=1
+            fi;;
         esac
     done
     session_ok=0
@@ -358,7 +364,7 @@ while :; do
            printf '%s\\n' "$properties" | grep -qx 'TTY=tty1' &&
            printf '%s\\n' "$properties" | grep -qx 'Active=yes' &&
            printf '%s\\n' "$properties" | grep -qx 'Seat=seat0' &&
-           printf '%s\\n' "$properties" | grep -qx 'Service=login' &&
+           printf '%s\\n' "$properties" | grep -qx 'Service=greetd' &&
            printf '%s\\n' "$properties" | grep -qx 'Remote=no'; then
             session_ok=1
             printf '%s\\n' "$properties"
@@ -367,6 +373,7 @@ while :; do
     [ "$shell_ok" -eq 1 ] && [ "$session_ok" -eq 1 ] && break
     n=$((n+1)); test "$n" -le 90 || exit 1; sleep 1
 done
+test "$(stat -Lc '%u:%a' "/run/user/$tester_uid")" = "$tester_uid:700"
 ps -t tty1 -o pid,ppid,user,tty,stat,args
 ''', timeout=150)
         record(output, f'tty1-authentication-{suffix}.log', tty_login)
@@ -644,7 +651,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
-for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
 apt-config dump | grep '^APT::Install-Recommends "false";'
 apt-config dump | grep '^APT::Install-Suggests "false";'
 dpkg --audit
@@ -677,6 +684,10 @@ ps -t tty1 -o pid,ppid,user,comm,args
 ps -t tty1 -o user=,comm= | grep -E 'tester[[:space:]]+ash$'
 ''', timeout=90))
         result['checks'].append('Desktop logout stops Xorg, panel, power manager and authentication agent and leaves the authenticated tty1 shell')
+        phase('Verify tty1 shell logout returns to tuigreet')
+        guest.qmp.type('exit\n')
+        wait_for_greeter(guest, 'Username')
+        result['checks'].append('greetd authenticates tuigreet on tty1, assigns an active seat0 and user runtime directory, and restores the greeter at shell logout')
         phase('Verify toolchain, matching kernel headers and Lua; enable tty1 auto-start for benchmark boots')
         record(output, 'development-tools.log', guest.run('''set -eu
 work=$(mktemp -d /tmp/bme-toolchain.XXXXXX)

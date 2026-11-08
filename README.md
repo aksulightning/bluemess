@@ -79,7 +79,9 @@ copy the live environment. Logs appear at the path printed by the installer and
 are also copied to `/var/log/blue-mess/install.log` on success.
 
 After completion, shut down, remove the installation medium, and boot the disk.
-Log in with the created account, then run `bluemess-desktop start` (or `startx`).
+Sign in at the tuigreet prompt on tty1 with the created account. It opens a
+BusyBox ash login shell. Run `bluemess-desktop start` (or `startx`) to open
+the desktop. tty2 and the serial console provide recovery logins.
 To start the desktop after future tty1 logins, run `bluemess-desktop auto-start true`
 as your ordinary user, without sudo. Use `bluemess-desktop auto-start false` to
 return to console-only logins, and `bluemess-desktop status` to inspect the setting.

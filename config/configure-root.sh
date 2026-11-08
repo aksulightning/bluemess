@@ -30,7 +30,9 @@ done
 ln -s /etc/init.d/bme-mount-ro "$root/etc/runlevels/shutdown/bme-mount-ro"
 for port in tty1 tty2 ttyS0; do
     ln -sfn /etc/init.d/bme-getty "$root/etc/init.d/bme-getty.$port"
-    ln -s "/etc/init.d/bme-getty.$port" "$root/etc/runlevels/default/bme-getty.$port"
+    if [ "$port" != tty1 ] || [ "$role" = installer ]; then
+        ln -s "/etc/init.d/bme-getty.$port" "$root/etc/runlevels/default/bme-getty.$port"
+    fi
 done
 cat >> "$root/etc/rc.conf" <<'RC'
 # Blue Mess native OpenRC PID 1; individual services have explicit dependencies.
@@ -45,6 +47,8 @@ if [ "$role" = installer ]; then
     printf '\nInstaller media: root password is bluemess. Run bme-install.\n' >> "$root/etc/issue"
 fi
 if [ "$role" = target ]; then
+    test -x "$root/etc/init.d/greetd"
+    ln -s /etc/init.d/greetd "$root/etc/runlevels/default/greetd"
     sed -i 's/^CriticalPowerAction=.*/CriticalPowerAction=PowerOff/' "$root/etc/UPower/UPower.conf"
 fi
 # /bin/sh and /bin/bash must remain real Debian interpreter choices.

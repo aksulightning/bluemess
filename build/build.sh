@@ -20,6 +20,7 @@ bash packages/build.sh "$PWD/work/debs" "$VERSION"
 
 bootstrap() {
     local role=$1 root="$PWD/work/$1" include lsb_output
+    local -a native_services=(dbus elogind chrony udev)
     [[ ! -e $root ]] || { echo "Refusing reused root: $root" >&2; exit 1; }
     include=$(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' "manifests/$role.txt" | paste -sd,)
     mmdebstrap --mode=root --variant=minbase --architectures="$ARCH" \
@@ -47,9 +48,15 @@ bootstrap() {
     chroot "$root" dpkg --verify dpkg init-system-helpers > "out/logs/$role-helper-verify.log"
     [[ ! -s out/logs/$role-helper-verify.log ]]
     grep -Eq '^[[:space:]]*session[[:space:]]+optional[[:space:]]+pam_elogind[.]so([[:space:]]|$)' "$root/etc/pam.d/common-session"
+    if [[ $role == target ]]; then
+        native_services+=(greetd)
+        [[ -x $root/usr/bin/tuigreet ]]
+        grep -Eq '^[[:space:]]*@include[[:space:]]+common-session[[:space:]]*$' "$root/etc/pam.d/greetd"
+        chroot "$root" getent passwd _greetd >/dev/null
+    fi
     # Debian's LSB adapter would bypass native service command definitions if
     # an INIT INFO header accidentally appears in these openrc-run scripts.
-    for service in dbus elogind chrony udev; do
+    for service in "${native_services[@]}"; do
         lsb_output=$(chroot "$root" /usr/lib/rc/bin/lsb2rcconf "/etc/init.d/$service")
         [[ -z $lsb_output ]] || {
             echo "Native service misclassified as LSB: $service" >&2; exit 1;
@@ -61,6 +68,7 @@ bootstrap() {
     chroot "$root" /usr/bin/ash -c '
         set -eu
         for service in /usr/share/blue-mess/init.d/*; do
+            [ "$1" != installer ] || [ "${service##*/}" != greetd ] || continue
             command=
             RC_SVCNAME=${service##*/}
             export RC_SVCNAME
@@ -73,7 +81,7 @@ bootstrap() {
                 printf "%s\t%s\n" "$RC_SVCNAME" "$command"
             fi
         done
-    ' > "out/logs/$role-service-commands.log"
+    ' ash "$role" > "out/logs/$role-service-commands.log"
     [[ $(readlink "$root/bin/sh") == dash ]]
     [[ -x $root/usr/sbin/openrc-init && -x $root/bin/bash ]]
     for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done

@@ -6,6 +6,8 @@ busybox
 bash
 dash
 login
+greetd
+tuigreet
 passwd
 util-linux
 mount

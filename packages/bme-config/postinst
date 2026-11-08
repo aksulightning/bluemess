@@ -17,13 +17,24 @@ configure)
     # Own all daemon entry points, including future package-maintainer actions.
     # Divert only vendor paths; our original scripts retain openrc-run.
     mkdir -p /usr/share/blue-mess/vendor-init /etc/init.d
-    for name in dbus elogind chrony udev; do
+    services='dbus elogind chrony udev'
+    if [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ]; then
+        services="$services greetd"
+    fi
+    for name in $services; do
         destination="/usr/share/blue-mess/vendor-init/$name"
         if ! dpkg-divert --listpackage "/etc/init.d/$name" | grep '^bme-config$' >/dev/null; then
             dpkg-divert --package bme-config --add --rename --divert "$destination" "/etc/init.d/$name"
         fi
         install -m 0755 "/usr/share/blue-mess/init.d/$name" "/etc/init.d/$name"
     done
+    # Upgrade older installed systems after both greeter packages are present.
+    # Change runlevel links only. Leave the current console session until reboot.
+    if [ -L /etc/runlevels/default/bme-getty.tty1 ] && [ ! -L /etc/runlevels/default/bme-media ] &&
+        [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ]; then
+        rc-update add greetd default
+        rc-update del bme-getty.tty1 default
+    fi
     for path in /usr/share/blue-mess/init.d/bme-*; do
         install -m 0755 "$path" "/etc/init.d/${path##*/}"
     done

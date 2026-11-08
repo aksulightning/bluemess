@@ -1,5 +1,19 @@
 # Implementation record
 
+## 2026-11-08: greetd and tuigreet on installed tty1
+
+- The pinned Debian Sid snapshot provides greetd 0.10.3-7 and tuigreet
+  0.9.1-6. Installed-system tty1 now uses native OpenRC greetd with Debian
+  PAM. Tuigreet opens an interactive ash login shell, which runs the
+  existing per-user desktop auto-start hook.
+- tty2 and the serial console use agetty. The live installer retains
+  agetty on tty1. Upgrading `bme-config` with both greeter packages
+  installed changes the next boot's runlevel links for older installations.
+- Package assembly, runlevel fixtures, syntax checks and all 26 local
+  tests passed. Hosted validation must exercise the real tuigreet password
+  prompt, active seat and runtime directory, desktop startup and return
+  to the greeter on logout.
+
 ## 2026-11-08: session checks at desktop startup
 
 - Added `bluemess-session-check` for the active local tty1 session, elogind
