@@ -1,5 +1,21 @@
 # Implementation record
 
+## 2026-11-08: NVIDIA and Openbox audio troubleshooting
+
+- On the reported RTX 3060 installation, DKMS matched the running kernel,
+  `nvidia-smi` detected the GPU, and Xorg received the primary DRM device
+  from elogind. The desktop user was denied access to the root-owned
+  `renderD128` node. The troubleshooting guide records a temporary permission
+  test, a local udev repair, and a separate X11 socket ownership repair.
+- The user confirmed that manual PipeWire startup worked once the server was
+  running before its clients. The optional `bluemess-audio-start` launcher
+  waits for the PipeWire core and runs the three audio processes in the
+  foreground Openbox terminal session. Audio packages are installed separately.
+- All 25 local tests passed. A local package build included the executable
+  launcher. Simulated audio processes verified startup order, duplicate
+  prevention, and cleanup on interruption and process failure. Hardware
+  playback through the new launcher has yet to be verified.
+
 ## 2026-11-08: commit-tagged ISO prereleases
 
 - In [push run 40074552091](https://github.com/aksulightning/bluemess/actions/runs/40074552091),

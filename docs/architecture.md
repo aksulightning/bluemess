@@ -30,7 +30,7 @@ initramfs-tools owns root filesystem checks before mounting root. `bme-localmoun
 
 The configuration package diverts Debian's dbus, elogind, chrony and udev service entry points to preserved vendor paths and installs proper `openrc-run` entry points. Thus package maintainer `invoke-rc.d`/service actions have a real service implementation; they are not replaced with unconditional-success commands. Removal restores diverted scripts. Debian LSB metadata lives in `/etc/insserv/overrides/`, separate from native service code. Debian OpenRC classifies inline `INIT INFO` headers as LSB scripts and bypasses native service command definitions, so these headers must never be added to the native wrappers. Image construction asserts native classification using Debian's actual `lsb2rcconf` tool and verifies unmodified `dpkg`/`init-system-helpers` package files. Build-time policy preventing daemon starts is limited to image construction. The configuration step removes inherited runlevel links and activates exactly one owner per daemon.
 
-The explicitly installed `systemd-standalone-sysusers` and `systemd-standalone-tmpfiles` helpers run during `bme-boot` to apply Debian package user definitions and runtime directories, including the root-owned sticky X11/ICE socket directories required by rootless Xorg. They are standalone command-line helpers and do not start a systemd manager.
+The explicitly installed `systemd-standalone-sysusers` and `systemd-standalone-tmpfiles` helpers run during `bme-boot` to apply the user definitions and runtime-directory rules present on the system. See [the X11 socket ownership fix](troubleshooting.md#x11-socket-ownership) if the X11 tmpfiles rule is missing. These standalone commands run under OpenRC.
 
 The kernel udev daemon may have `systemd` in its filename. That is permitted: it is a device helper rather than a system or user service manager. Runtime verification must assert `/proc/1/exe`, service state and actual processes.
 
@@ -40,7 +40,7 @@ The kernel udev daemon may have `systemd` in its filename. That is permitted: it
 
 For Wi-Fi, create `/etc/blue-mess/network.conf` with `mode=wifi` and `interface=wlan0` (use the actual name from `ip link`). Create a mode-0600 `/etc/wpa_supplicant/bme.conf` with a `network={...}` block produced by `wpa_passphrase`, removing its commented plaintext password line. Restart `bme-network` with `rc-service bme-network restart`. Only Wi-Fi mode starts wpa_supplicant. `iw` supplies diagnostics. Intel and Realtek firmware are selected explicitly; hardware outside the included firmware coverage may need additional Sid firmware. Only one connection is managed in this first version.
 
-ALSA uses kernel sound drivers and `alsa-utils`; `alsamixer` is available on demand and `alsactl` saves/restores mixer state. No PulseAudio or PipeWire daemon is enabled. chrony performs normal network synchronization and retains its own drift state. BusyBox syslogd rotates `/var/log/messages` at 256 KiB with two backups; OpenRC keeps `/var/log/rc.log`.
+ALSA uses kernel sound drivers and `alsa-utils`. Use `alsamixer` to adjust mixer levels. `alsactl` saves and restores those levels. The [optional audio launcher](troubleshooting.md#sound-in-openbox) starts PipeWire for the current desktop on request. chrony performs normal network synchronization and retains its own drift state. BusyBox syslogd rotates `/var/log/messages` at 256 KiB with two backups. OpenRC keeps `/var/log/rc.log`.
 
 ## Session and desktop
 

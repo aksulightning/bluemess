@@ -1,0 +1,62 @@
+#!/usr/bin/ash
+# Run a temporary PipeWire stack in the current desktop session.
+set -eu
+
+user_id=$(id -u)
+if [ "$user_id" -eq 0 ] || [ -z "${DISPLAY:-}" ] || [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    echo 'Run bluemess-audio-start as your ordinary user from an Openbox terminal.' >&2
+    exit 1
+fi
+
+XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$user_id}
+if [ ! -d "$XDG_RUNTIME_DIR" ] || [ ! -w "$XDG_RUNTIME_DIR" ] ||
+    [ "$(stat -c %u "$XDG_RUNTIME_DIR")" != "$user_id" ]; then
+    echo "No usable session runtime directory at $XDG_RUNTIME_DIR. Log in again from tty1." >&2
+    exit 1
+fi
+export XDG_RUNTIME_DIR
+
+for program in pipewire pw-cli wireplumber pipewire-pulse; do
+    command -v "$program" >/dev/null 2>&1 || {
+        echo "Missing $program. Install pipewire-audio first." >&2
+        exit 1
+    }
+done
+
+exec 9>"$XDG_RUNTIME_DIR/bluemess-audio.lock"
+if ! flock -n 9 || pgrep -u "$user_id" -x 'pipewire|wireplumber|pipewire-pulse' >/dev/null; then
+    echo 'Audio processes already exist for this user. Stop the previous audio session first.' >&2
+    exit 1
+fi
+
+children=
+cleanup() {
+    trap - EXIT HUP INT TERM
+    for pid in $children; do kill "$pid" 2>/dev/null || :; done
+    for pid in $children; do wait "$pid" 2>/dev/null || :; done
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+
+pipewire &
+children=$!
+attempt=0
+until timeout 1 pw-cli info 0 >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 10 ] || ! kill -0 "$children" 2>/dev/null; then
+        echo 'PipeWire did not become reachable. Check its messages above and the session runtime directory.' >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+wireplumber &
+children="$children $!"
+pipewire-pulse &
+children="$children $!"
+echo 'Audio processes started. Open pavucontrol in another terminal. Press Ctrl+C here to stop audio.'
+
+while kill -0 $children 2>/dev/null; do sleep 1; done
+echo 'An audio process exited. Check its messages above.' >&2
+exit 1
