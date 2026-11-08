@@ -1,5 +1,19 @@
 # Implementation record
 
+## 2026-11-08: Openbox audio commands
+
+- `bluemess-start-audio` uses the validated session runtime directory for
+  both sockets, waits for PipeWire before starting its clients, and reports
+  an already responding PulseAudio server. The previous launcher name is
+  available as an alias.
+- `bluemess-fix-audio` lists ALSA cards and server profiles or changes the
+  profile of a named card. `bluemess-audio-panel` uses its server discovery
+  to open `pavucontrol` against a responding socket.
+- All 25 local tests passed. Simulated audio processes verified server
+  discovery, profile commands, panel handoff, socket paths, startup order,
+  and cleanup. The package build included all three commands and the alias.
+  Playback through the new commands still needs hardware verification.
+
 ## 2026-11-08: NVIDIA and Openbox audio troubleshooting
 
 - On the reported RTX 3060 installation, DKMS matched the running kernel,

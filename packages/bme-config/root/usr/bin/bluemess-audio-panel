@@ -1,0 +1,16 @@
+#!/usr/bin/ash
+# Point the desktop volume control at a server that actually responds.
+set -eu
+
+if [ -z "${DISPLAY:-}" ]; then
+    echo 'Run bluemess-audio-panel from an Openbox terminal.' >&2
+    exit 1
+fi
+if ! command -v pavucontrol >/dev/null 2>&1; then
+    echo 'Install pavucontrol first.' >&2
+    exit 1
+fi
+
+PULSE_SERVER=$("$(dirname "$0")/bluemess-fix-audio" server)
+export PULSE_SERVER
+exec pavucontrol "$@"

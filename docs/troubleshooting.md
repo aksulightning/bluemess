@@ -84,27 +84,52 @@ volume control.
 sudo apt install pipewire-audio pulseaudio-utils pavucontrol
 ```
 
-From an Openbox terminal, run `bluemess-audio-start` as your regular user.
-On an older installation, run `sh /path/to/bluemess-audio-start` using the
-[launcher from this repository](../packages/bme-config/root/usr/bin/bluemess-audio-start).
-Stop any previous manual PipeWire processes before launching it. Keep the
-terminal open while you need audio. Open `pavucontrol` in a second terminal
-to select and unmute the intended output. Press Ctrl+C in the launcher
-terminal to stop the audio processes it started.
+From an Openbox terminal, run `bluemess-start-audio` as your regular user.
+It waits for PipeWire before starting WirePlumber and `pipewire-pulse`.
+The sockets live at `$XDG_RUNTIME_DIR/pipewire-0` and
+`$XDG_RUNTIME_DIR/pulse/native`. If the PulseAudio socket already responds,
+the command reports the running server and exits. Stop any incomplete
+manual audio session before starting a new one. Keep the terminal open
+while using the new session. Press Ctrl+C there to stop the processes it
+started. The earlier command name `bluemess-audio-start` is an alias.
 
 The launcher falls back to the existing `/run/user/$(id -u)` login directory
-if `XDG_RUNTIME_DIR` is unusable. If it reports this fallback, run
-`export XDG_RUNTIME_DIR="/run/user/$(id -u)"` in the terminal you use for
-`pavucontrol` as well. If neither directory is usable, check
+if `XDG_RUNTIME_DIR` is unusable. If neither directory is usable, check
 `ls -ld "/run/user/$(id -u)"` and `loginctl session-status` from your regular
 user session. Elogind creates and owns the lifecycle of that directory.
 [Debian pam_elogind manual](https://manpages.debian.org/unstable/libpam-elogind/pam_elogind.8.en.html)
 
-The launcher waits for the PipeWire core to answer `pw-cli info 0` before
-starting WirePlumber and `pipewire-pulse`. If manual startup reports
-`Failed to connect to PipeWire` or `Host is down`, start `pipewire` in the
-foreground and check `pw-cli info 0` from a second terminal in the same
-desktop session. The default socket is `$XDG_RUNTIME_DIR/pipewire-0`.
+Run `bluemess-audio-panel` from a second Openbox terminal to open
+`pavucontrol` against a responding server. It checks `PULSE_SERVER`,
+`PULSE_RUNTIME_PATH`, `XDG_RUNTIME_DIR` and the login runtime directory.
+Select and unmute the intended output under **Output Devices**. If an
+application is already playing, check its route under **Playback**.
+
+`bluemess-fix-audio detect` shows ALSA cards, the connected server, available
+card profiles, and current playback outputs. `bluemess-fix-audio server`
+prints the server address alone.
+
+If only NVIDIA HDMI is active and you want speakers plugged into the PC,
+use the profile shown by `detect` for your onboard audio card. For example,
+the reported Intel PCH card with an ALC897 codec can use this command when
+`output:analog-stereo` is available.
+
+```sh
+bluemess-fix-audio enable alsa_card.pci-0000_00_1f.3 output:analog-stereo
+bluemess-audio-panel
+```
+
+`bluemess-fix-audio disable CARD` selects the `off` profile for that card.
+This disables both its inputs and outputs. Use `enable CARD PROFILE` to
+restore a profile. The panel lets you select the default playback output.
+[Debian pactl manual](https://manpages.debian.org/unstable/pulseaudio-utils/pactl.1.en.html)
+
+On an older installation, copy the three [audio commands](../packages/bme-config/root/usr/bin/)
+into the same directory, make them executable, and run them with `./`.
+
+For manual startup, `Host is down` means a client could not reach the
+PipeWire core. Start `pipewire` in the foreground, then check
+`pw-cli info 0` from a second terminal in the same desktop session.
 RTKit `ServiceUnknown` warnings concern real-time scheduling. A successful
-core query confirms the audio server is reachable despite those warnings.
+core query confirms the server is reachable.
 [PipeWire daemon documentation](https://docs.pipewire.org/page_daemon.html)
