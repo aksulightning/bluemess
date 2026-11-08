@@ -13,6 +13,10 @@
   discovery, profile commands, panel handoff, socket paths, startup order,
   and cleanup. The package build included all three commands and the alias.
   Playback through the new commands still needs hardware verification.
+- A user trace showed that an Openbox terminal had a valid runtime directory
+  but lacked a session D-Bus address. The audio launcher now starts a private
+  bus in that case. Simulated checks covered missing and inherited addresses,
+  an already running audio server, and cleanup on Ctrl+C.
 
 ## 2026-11-08: NVIDIA and Openbox audio troubleshooting
 

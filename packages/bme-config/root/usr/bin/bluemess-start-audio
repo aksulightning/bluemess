@@ -3,7 +3,7 @@
 set -eu
 
 user_id=$(id -u)
-if [ "$user_id" -eq 0 ] || [ -z "${DISPLAY:-}" ] || [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+if [ "$user_id" -eq 0 ] || [ -z "${DISPLAY:-}" ]; then
     echo 'Run bluemess-start-audio as your ordinary user from an Openbox terminal.' >&2
     exit 1
 fi
@@ -44,6 +44,11 @@ for program in pipewire pw-cli wireplumber pipewire-pulse; do
         exit 1
     }
 done
+
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    echo 'Starting a private D-Bus session for audio.'
+    exec dbus-run-session -- ash "$0" "$@"
+fi
 
 exec 9>"$XDG_RUNTIME_DIR/bluemess-audio.lock"
 if ! flock -n 9 || pgrep -u "$user_id" -x 'pipewire|wireplumber|pipewire-pulse' >/dev/null; then

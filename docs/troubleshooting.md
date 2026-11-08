@@ -93,6 +93,12 @@ manual audio session before starting a new one. Keep the terminal open
 while using the new session. Press Ctrl+C there to stop the processes it
 started. The earlier command name `bluemess-audio-start` is an alias.
 
+The launcher uses the inherited session D-Bus address when available. If
+that address is unset, it starts a private bus for the lifetime of the
+audio launcher. With an older launcher, run
+`dbus-run-session -- bluemess-start-audio` from the Openbox terminal to
+supply a bus. [D-Bus session runner manual](https://dbus.freedesktop.org/doc/dbus-run-session.1.html)
+
 The launcher falls back to the existing `/run/user/$(id -u)` login directory
 if `XDG_RUNTIME_DIR` is unusable. If neither directory is usable, check
 `ls -ld "/run/user/$(id -u)"` and `loginctl session-status` from your regular
