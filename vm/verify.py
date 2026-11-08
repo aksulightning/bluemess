@@ -82,6 +82,23 @@ class QMP:
             elif 'return' in result:
                 return result['return']
 
+    def chord(self, *codes):
+        # Pace individual PS/2 transitions under TCG. QMP acknowledges enqueueing,
+        # not guest delivery; a simultaneous chord can outrun guest input handling.
+        def key(code, down):
+            self.command('input-send-event', {'events': [{'type': 'key', 'data': {
+                'down': down, 'key': {'type': 'qcode', 'data': code}}}]})
+            time.sleep(.2)
+        # Clear any inherited modifier state before pressing the chord.
+        for code in reversed(codes):
+            key(code, False)
+        try:
+            for code in codes:
+                key(code, True)
+        finally:
+            for code in reversed(codes):
+                key(code, False)
+
     def type(self, text):
         punctuation = {' ': 'spc', '\n': 'ret', '-': 'minus', '.': 'dot', '/': 'slash'}
         for char in text:
@@ -415,7 +432,7 @@ n=0; until pgrep -u tester -x xfce4-panel >/dev/null; do n=$((n+1)); test "$n" -
     for attempt in range(3):
         if guest.run('pgrep -u tester -x xterm || true').strip():
             break
-        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'}, {'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 't'}], 'hold-time': 200})
+        guest.qmp.chord('ctrl', 'alt', 't')
         # A shortcut sent during final startup may precede the keyboard grab.
         # Wait before retrying, and never send another once the process exists.
         if guest.run('''n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || break; sleep 1; done; pgrep -u tester -x xterm || true''', timeout=30).strip():
@@ -530,7 +547,7 @@ done
 ''', timeout=180)
     # The WAV backend updates its header on close. During the run, examine
     # newly appended stereo s16 PCM and save a standalone finalized excerpt.
-    offset = max(44, guest.audio_path.stat().st_size)
+    offset = max(44, guest.audio_path.stat().st_size if guest.audio_path.exists() else 44)
     offset += (-offset) % 4
     guest.run(user + 'bluemess-audio test', timeout=30)
     time.sleep(2)
@@ -852,6 +869,11 @@ runuser -u tester -- bluemess-desktop auto-start true
             # QMP screenshot is independent of a working guest serial shell.
             with suppress(Exception):
                 guest.qmp.command('screendump', {'filename': str(output / 'failure-console.ppm')})
+            with suppress(Exception):
+                guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': key}
+                                                       for key in ('ctrl', 'alt', 'f4')], 'hold-time': 200})
+                time.sleep(1)
+                guest.qmp.command('screendump', {'filename': str(output / 'failure-diagnostics-tty4.ppm')})
             with suppress(Exception):
                 console_state(guest, output, 'failure', 'final')
     finally:

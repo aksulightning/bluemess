@@ -4,8 +4,8 @@
 description="Login and seat management"
 command=/usr/libexec/elogind
 supervisor=supervise-daemon
-output_logger="/usr/bin/logger -t elogind"
-error_logger="/usr/bin/logger -t elogind"
+output_logger="exec /usr/bin/busybox logger -t elogind"
+error_logger="exec /usr/bin/busybox logger -t elogind"
 pidfile=/run/bme-elogind.pid
 depend() { need dbus udev bme-boot bme-syslog; before bme-getty.tty1 bme-getty.ttyS0; }
 start_pre() {

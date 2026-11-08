@@ -20,7 +20,20 @@
   or silent playback blocks the validated artifact gate.
 - All 36 local tests passed under dash, shell/Python syntax checks passed,
   and the bme-config Debian package assembled successfully. Docker, QEMU and BusyBox are unavailable locally;
-  hosted ISO/VM validation and physical playback are not yet established.
+  hosted validation results follow; physical playback remains untested.
+- Hosted runs 42520020576 and 42519994212 passed the BusyBox checks, ISO
+  assembly, USB boot, offline installation, tty1/2/3 password login and tty4
+  routing. Automatic PipeWire startup, crash recovery, explicit restart,
+  captured non-silent HDA playback and desktop logout cleanup passed.
+- Run 42519994212 also captured non-silent playback after two reboots. Idle
+  memory was 357.04 and 350.73 MiB, above the unchanged 350 MiB limit.
+  Both runs eventually hit the intermittent terminal-shortcut launch timeout.
+  These candidates are not validated releases.
+- Follow-up removes ten unnecessary persistent logging shells using exec and
+  the existing BusyBox logger. The VM shortcut probe paces individual PS/2 key
+  transitions and releases modifiers explicitly; this still exercises the real
+  Openbox binding. New runs must establish whether it resolves the timeout.
+  Failure diagnostics now include tty4. Full acceptance remains pending.
 
 ## 2026-11-08: greetd and tuigreet on installed tty1
 

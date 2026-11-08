@@ -8,8 +8,8 @@ pidfile=/run/bme-greetd.pid
 respawn_delay=2
 respawn_max=5
 respawn_period=60
-output_logger="/usr/bin/logger -t greetd"
-error_logger="/usr/bin/logger -t greetd"
+output_logger="exec /usr/bin/busybox logger -t greetd"
+error_logger="exec /usr/bin/busybox logger -t greetd"
 
 depend() { need bme-boot elogind bme-syslog; after bme-network; }
 

@@ -90,7 +90,7 @@ bootstrap() {
     ' ash "$role" > "out/logs/$role-service-commands.log"
     [[ $(readlink "$root/bin/sh") == dash ]]
     [[ -x $root/usr/sbin/openrc-init && -x $root/bin/bash ]]
-    for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done
+    for applet in ash udhcpc syslogd klogd logger; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done
     chroot "$root" busybox syslogd --help > "out/logs/$role-syslog-help.log" 2>&1 || :
     grep -q -- '-f FILE' "out/logs/$role-syslog-help.log"
     chroot "$root" busybox ash -c 'test "$(printf "%s" ash)" = ash; set -eu; : "$((1+1))"'
