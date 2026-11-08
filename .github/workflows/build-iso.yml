@@ -1,4 +1,4 @@
-# Development-only artifact. No test, VM validation, or release publication.
+# Development-only ISO. No static tests or VM validation.
 name: Build installer ISO (untested)
 
 on:
@@ -17,6 +17,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -80,3 +82,48 @@ jobs:
           compression-level: 6
           retention-days: 14
           if-no-files-found: warn
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/blue-mess-edition'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: blue-mess-edition-${{ needs.build.outputs.version }}-amd64-UNTESTED
+          path: release
+      - name: Verify checksum and publish untested prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          cd release
+          sha256sum -c SHA256SUMS
+          mapfile -d '' -t assets < <(find . -type f -print0)
+          release_tag="$SOURCE_COMMIT-iso-untested"
+          tag_commit=$(gh api "repos/$GH_REPO/git/matching-refs/tags/$release_tag" \
+            --jq ".[] | select(.ref == \"refs/tags/$release_tag\") | .object.sha")
+          if [[ -n "$tag_commit" && "$tag_commit" != "$SOURCE_COMMIT" ]]; then
+            echo "Tag $release_tag points to a different commit" >&2
+            exit 1
+          fi
+          if [[ "$tag_commit" == "$SOURCE_COMMIT" ]] &&
+            gh release view "$release_tag" --json isDraft --jq '.isDraft' | grep -Fxq false; then
+            echo "Release $release_tag is already published"
+            exit 0
+          fi
+          gh release create "$release_tag" --target "$SOURCE_COMMIT" --prerelease --latest=false \
+            --title "Blue Mess Edition — UNTESTED ISO (${SOURCE_COMMIT:0:12})" \
+            --notes-file - "${assets[@]}" <<EOF
+          Development-only installer for amd64 UEFI without Secure Boot. Installation erases the selected disk.
+
+          The ISO checksum passed. Boot, installation, desktop and memory validation were skipped.
+          Download the ISO and SHA256SUMS together and verify the checksum before use.
+
+          Source commit $SOURCE_COMMIT
+          Build run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF

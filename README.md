@@ -12,11 +12,11 @@ acceptance target, not a measured claim or minimum physical RAM requirement.
 
 ## Download and verify
 
-The first experimental release is [v0.1.0-alpha.1](https://github.com/aksulightning/bluemess/releases/tag/v0.1.0-alpha.1).
-It is an **alpha for testing**, not a stable release. Each successful build of
-`feat/blue-mess-edition` deletes and recreates this prerelease with the newly
-validated ISO and reports. Its assets and checksums can change: download the ISO
-and `SHA256SUMS` together. Version-tag releases retain their original assets.
+On [Releases](https://github.com/aksulightning/bluemess/releases), look for the
+`<commit-sha>-iso-tested` prerelease for the build you want. Each successful
+verification on a push to `feat/blue-mess-edition` publishes the validated ISO
+and reports under its full commit SHA. Download the ISO and `SHA256SUMS`
+together. Published releases retain their original assets.
 
 Open [Actions](https://github.com/aksulightning/bluemess/actions/workflows/iso.yml)
 and select a successful **Build and verify installer ISO** run. Download its
@@ -48,10 +48,12 @@ When ISO assembly succeeds, the run uploads a
 this artifact is available. An unsuccessful ISO assembly cannot produce a
 usable ISO; its build logs are preserved instead.
 
+Successful pushes to `feat/blue-mess-edition` also publish the same untested
+artifact under the separate `<commit-sha>-iso-untested` prerelease tag.
+
 **UNTESTED means no boot, installation, desktop or memory acceptance has
-been established.** It is not a validated download, does not replace the
-alpha release and should be used only for development testing. Verify its
-checksum before trying it on disposable media or a VM.
+been established.** Use this download only for development testing. Verify
+its checksum before trying it on disposable media or a VM.
 
 ## Install
 

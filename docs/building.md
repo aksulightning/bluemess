@@ -30,11 +30,10 @@ dispatch is available after the workflow is on the default branch.
 
 On successful assembly and checksum verification it uploads an Actions artifact
 whose name ends in `-UNTESTED`, with the ISO, checksum and build metadata.
-It does not set `validated=true`, does not publish a GitHub Release and never
-provides a `-validated` artifact. Build diagnostics are saved if assembly
-fails. This is a convenience for development, not an alternative acceptance
-or release route: a functioning ISO still cannot be produced if the build
-process itself fails.
+On a push to `feat/blue-mess-edition`, a separate job checks the downloaded
+artifact's checksum and publishes it as the development-only
+`<commit-sha>-iso-untested` prerelease. The build metadata keeps
+`validated=false`. Build diagnostics are saved if assembly fails.
 
 For a local build on a disposable Linux development machine with Docker:
 
@@ -58,9 +57,10 @@ zstd tar payload. Debian grub-mkrescue creates the EFI El Torito/hybrid image;
 its actual layout report is retained. It contains all target packages,
 initramfs tools and GRUB modules needed to install without a connection.
 
-The release job runs only on existing `v*` push tags, after verification. It
-downloads the validated artifact, verifies the ISO checksum again, and publishes
-those bytes. It refuses an existing release rather than replacing its assets.
-Only that job has `contents: write`. Ordinary jobs have `contents: read` and
-never use `pull_request_target`. Official actions are pinned to full commit SHAs
-resolved from their upstream tag refs at implementation time.
+After full verification, the release job downloads the validated artifact,
+checks its ISO checksum, and publishes those bytes. A push to
+`feat/blue-mess-edition` uses the `<commit-sha>-iso-tested` prerelease tag.
+A push of an existing `v*` tag publishes under that version tag. Published
+assets stay attached to their original releases. Both workflows grant
+`contents: write` only to their release jobs. Official actions are pinned
+to full commit SHAs resolved from their upstream tag refs at implementation time.

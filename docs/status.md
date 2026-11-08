@@ -1,5 +1,17 @@
 # Implementation record
 
+## 2026-11-08: commit-tagged ISO prereleases
+
+- In [push run 40074552091](https://github.com/aksulightning/bluemess/actions/runs/40074552091),
+  ISO assembly, VM verification and the release-job checksum passed. The
+  release step then reported an HTTP 404 from GitHub CLI. The old script
+  attempted to delete the previous alpha before staging its replacement.
+- Feature branch pushes now use separate full-SHA prerelease tags ending in
+  `-iso-tested` and `-iso-untested`. The tested release requires all acceptance
+  gates. The untested release requires successful assembly and a matching
+  checksum. Publication uses each workflow's own artifact and retains older
+  published releases.
+
 ## 2026-10-24: add independent, untested ISO build
 
 - Added a separate `.github/workflows/build-iso.yml` on branch pushes and

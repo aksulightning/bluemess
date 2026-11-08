@@ -105,6 +105,7 @@ jobs:
           name: blue-mess-edition-${{ needs.build.outputs.version }}-amd64-validated
           path: release
       - name: Verify tested bytes and publish release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -126,34 +127,28 @@ jobs:
               --notes 'UEFI amd64 installer. See bundled verification and memory reports. Verify SHA256SUMS before use.' \
               "${assets[@]}"
           else
-            # The first experimental release is intentionally replaceable.
-            # Delete only this named prerelease, and only after the build passes.
-            release_tag=v0.1.0-alpha.1
-            if gh release view "$release_tag" >/dev/null 2>&1; then
-              is_prerelease=$(gh api "repos/$GH_REPO/releases/tags/$release_tag" --jq '.prerelease')
-              [[ "$is_prerelease" == true ]] || {
-                echo 'Refusing to replace a release that is not marked prerelease' >&2
-                exit 1
-              }
-              gh release delete "$release_tag" --cleanup-tag --yes
+            release_tag="$SOURCE_COMMIT-iso-tested"
+            tag_commit=$(gh api "repos/$GH_REPO/git/matching-refs/tags/$release_tag" \
+              --jq ".[] | select(.ref == \"refs/tags/$release_tag\") | .object.sha")
+            if [[ -n "$tag_commit" && "$tag_commit" != "$SOURCE_COMMIT" ]]; then
+              echo "Tag $release_tag points to a different commit" >&2
+              exit 1
             fi
-            notes_file=$(mktemp)
-            cat > "$notes_file" <<EOF
-          First experimental release of Blue Mess Edition. This is an alpha for testing, not a stable release.
+            if [[ "$tag_commit" == "$SOURCE_COMMIT" ]] &&
+              gh release view "$release_tag" --json isDraft --jq '.isDraft' | grep -Fxq false; then
+              echo "Release $release_tag is already published"
+              exit 0
+            fi
+            gh release create "$release_tag" --target "$SOURCE_COMMIT" --prerelease --latest=false \
+              --title "Blue Mess Edition — tested ISO (${SOURCE_COMMIT:0:12})" \
+              --notes-file - "${assets[@]}" <<EOF
+          Experimental Blue Mess Edition installer for amd64 UEFI without Secure Boot.
 
-          UEFI amd64 without Secure Boot; installation erases the selected disk. BIOS, dual boot and encryption are unsupported.
-
-          This prerelease is deleted and recreated after successful builds of feat/blue-mess-edition. Assets and SHA256SUMS may change; download them together and verify the checksum before use.
+          Installation erases the selected disk. Download the ISO and SHA256SUMS together and verify the checksum before use.
 
           This ISO passed offline installation, disk-only boot, rootless Xorg/Openbox, networking/package checks and three desktop memory readings at or below 350 MiB with zero swap. See the attached verification reports for exact readings.
 
           Source: $SOURCE_COMMIT
           Validation: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
-            # Stage all assets in a draft before making the prerelease visible.
-            gh release create "$release_tag" --target "$SOURCE_COMMIT" --draft --prerelease --latest=false \
-              --title 'Blue Mess Edition 0.1.0-alpha.1 — first experimental release' \
-              --notes-file "$notes_file" "${assets[@]}"
-            gh release edit "$release_tag" --draft=false --prerelease --latest=false
-            rm -f "$notes_file"
           fi
