@@ -244,6 +244,11 @@ for daemon in dbus-daemon elogind chronyd; do
     for pid in $pids; do readlink /proc/"$pid"/exe; done
 done
 pgrep -x systemd-udevd || pgrep -x udevd
+for device in /dev/input/event*; do
+    test -c "$device"
+    stat -c '%G %n' "$device"
+    test "$(stat -c %G "$device")" = input
+done
 dbus-send --system --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames
 for service in dbus elogind chrony; do
     test "$(pgrep -fc "^supervise-daemon $service --start ")" -eq 1
@@ -348,10 +353,11 @@ while :; do
     done
     session_ok=0
     for session in $(loginctl list-sessions --no-legend | awk '$3 == "tester" {print $1}'); do
-        properties=$(loginctl show-session "$session" -p Name -p TTY -p Active -p Service -p Remote)
+        properties=$(loginctl show-session "$session" -p Name -p TTY -p Active -p Service -p Remote -p Seat)
         if printf '%s\\n' "$properties" | grep -qx 'Name=tester' &&
            printf '%s\\n' "$properties" | grep -qx 'TTY=tty1' &&
            printf '%s\\n' "$properties" | grep -qx 'Active=yes' &&
+           printf '%s\\n' "$properties" | grep -qx 'Seat=seat0' &&
            printf '%s\\n' "$properties" | grep -qx 'Service=login' &&
            printf '%s\\n' "$properties" | grep -qx 'Remote=no'; then
             session_ok=1

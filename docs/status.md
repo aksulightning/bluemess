@@ -1,5 +1,15 @@
 # Implementation record
 
+## 2026-11-08: local seat and device permissions
+
+- Removed the native udev service's `--resolve-names=never` option so the
+  Debian rules can assign named groups to device nodes. Earlier NVIDIA logs
+  showed denied access to a render node left at `root:root`.
+- The installed VM suite now checks that input event devices have the
+  `input` group and that the active tty1 login belongs to `seat0`.
+  Local package assembly, shell syntax, and all 25 local tests passed.
+  The new VM checks and physical device behavior still need verification.
+
 ## 2026-11-08: Openbox audio commands
 
 - `bluemess-start-audio` uses the validated session runtime directory for

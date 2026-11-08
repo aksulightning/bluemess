@@ -27,6 +27,30 @@ The first reference benchmark measures desktop usage in a 1 GiB VM; installer
 minimum physical memory and a broad hardware compatibility matrix have not yet
 been established. Installer observations are reported separately by VM tooling.
 
+## Local login and seat access
+
+Sign in as your ordinary user on the machine's tty1, then run
+`bluemess-desktop start` from that login. Use these commands in the
+Openbox terminal to check the login and device assignment.
+
+```sh
+loginctl session-status
+loginctl seat-status seat0
+ls -l /dev/dri /dev/snd
+```
+
+The local session should report `tty1`, `seat0` and `active`. If the
+session is missing, check `rc-service elogind status` and the
+`pam_elogind.so` entry in `/etc/pam.d/common-session`.
+
+Older Blue Mess builds passed `--resolve-names=never` to udev. This
+skipped the group assignments in Debian's device rules, including
+`input`, `audio`, `video`, and `render`. If your installed
+`/etc/init.d/udev` still contains that option, remove the
+`command_args="--resolve-names=never"` line and reboot to apply Debian's
+default name resolution and recreate the device nodes.
+[Debian udev manual](https://manpages.debian.org/unstable/udev/systemd-udevd.8.en.html)
+
 ## NVIDIA driver loads but Xorg fails
 
 Check `uname -r`, `dkms status`, `nvidia-smi` and `loginctl session-status` from
@@ -40,26 +64,22 @@ id -nG
 ls -l /dev/dri/renderD*
 ```
 
-If the NVIDIA render node is `root:root` with mode `0660`, adding the user to
-`render` alone has no effect. Blue Mess's `--resolve-names=never` udev option
-prevents Debian's named-group rule from assigning the node to `render`.
+If the NVIDIA render node is `root:root` with mode `0660`, check the
+[udev setting above](#local-login-and-seat-access) so the node can receive
+the `render` group.
 For a quick test, if your user belongs to `video`, run
 `sudo chgrp video /dev/dri/renderD128` and retry `bluemess-desktop start`. Use
 the actual NVIDIA render node from `/dev/dri/by-path/` if its number differs.
 The temporary group change is lost when udev recreates the node.
 
-Run these commands as your regular user to fix ownership across reboots.
+If the node is `root:render` with mode `0660` and your user still cannot
+open it, add your account to `render`.
 
 ```sh
-getent group render >/dev/null || sudo groupadd --system render
 sudo usermod -aG render "$(id -un)"
-sudoedit /etc/init.d/udev
 ```
 
-Change `--resolve-names=never` to `--resolve-names=early`, reboot, then confirm
-the render node shows `root render` and `id -nG` includes `render`. A
-`bme-config` upgrade can overwrite the local service edit.
-[Debian udev manual](https://manpages.debian.org/unstable/udev/systemd-udevd.8.en.html)
+Log out and back in, then confirm `id -nG` includes `render`.
 
 ### X11 socket ownership
 

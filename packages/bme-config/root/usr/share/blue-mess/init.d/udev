@@ -3,7 +3,6 @@
 # in /etc/insserv/overrides so lsb2rcconf cannot misclassify this script.
 description="Device manager and coldplug"
 command=/usr/lib/systemd/systemd-udevd
-command_args="--resolve-names=never"
 command_background=yes
 pidfile=/run/bme-udev.pid
 depend() { need bme-root; before bme-localmount; provide dev; }
