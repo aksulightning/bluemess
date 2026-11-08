@@ -28,22 +28,37 @@ configure)
         fi
         install -m 0755 "/usr/share/blue-mess/init.d/$name" "/etc/init.d/$name"
     done
-    # Upgrade older installed systems after both greeter packages are present.
-    # Change runlevel links only. Leave the current console session until reboot.
-    if [ -L /etc/runlevels/default/bme-getty.tty1 ] && [ ! -L /etc/runlevels/default/bme-media ] &&
-        [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ]; then
-        rc-update add greetd default
-        rc-update del bme-getty.tty1 default
-    fi
     for path in /usr/share/blue-mess/init.d/bme-*; do
         install -m 0755 "$path" "/etc/init.d/${path##*/}"
     done
+    # Update next-boot links without interrupting an authenticated console.
+    if [ -L /etc/runlevels/sysinit/bme-root ]; then
+        for port in tty2 tty3; do
+            ln -sfn /etc/init.d/bme-getty "/etc/init.d/bme-getty.$port"
+            rc-update add "bme-getty.$port" default
+        done
+        for link in /etc/runlevels/*/bme-getty.tty*; do
+            case "${link##*.}" in tty1|tty2|tty3|ttyS0) continue ;; esac
+            [ ! -L "$link" ] || rm -f "$link"
+        done
+        if [ ! -L /etc/runlevels/default/bme-media ] &&
+            [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ]; then
+            rc-update add greetd default
+            if [ -L /etc/runlevels/default/bme-getty.tty1 ]; then
+                rc-update del bme-getty.tty1 default
+            fi
+        fi
+        # Image construction generates GRUB after installing the bootloader.
+        if [ -f /boot/grub/grub.cfg ] && [ ! -L /etc/runlevels/default/bme-media ]; then
+            update-grub
+        fi
+    fi
     mkdir -p /etc/blue-mess /etc/skel /etc/elogind/logind.conf.d
     [ -f /etc/blue-mess/network.conf ] || printf 'mode=auto\ninterface=\n' > /etc/blue-mess/network.conf
     cp -a /usr/share/blue-mess/skel/. /etc/skel/
     mkdir -p /etc/skel/Documents /etc/skel/Downloads
     printf '[Login]\nNAutoVTs=0\nReserveVT=0\nIdleAction=ignore\nHandleLidSwitch=suspend\n' > /etc/elogind/logind.conf.d/90-blue-mess.conf
-    # Disable package-specific user services: dbus-run-session owns desktop bus.
+    # Debian PAM creates the elogind runtime directory; the desktop owns its bus.
     pam-auth-update --package
     ;;
 esac

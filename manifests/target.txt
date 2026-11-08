@@ -36,6 +36,16 @@ iw
 firmware-iwlwifi
 firmware-realtek
 alsa-utils
+alsa-ucm-conf
+pipewire
+pipewire-bin
+pipewire-pulse
+pipewire-alsa
+wireplumber
+pulseaudio-utils
+pavucontrol
+firmware-sof-signed
+firmware-intel-sound
 procps
 htop
 nano

@@ -4,6 +4,8 @@
 description="Device manager and coldplug"
 command=/usr/lib/systemd/systemd-udevd
 command_background=yes
+output_log=/dev/tty4
+error_log=/dev/tty4
 pidfile=/run/bme-udev.pid
 depend() { need bme-root; before bme-localmount; provide dev; }
 start_pre() {

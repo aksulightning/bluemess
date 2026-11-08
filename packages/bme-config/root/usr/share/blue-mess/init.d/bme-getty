@@ -7,4 +7,8 @@ command_args="--noclear ${port} 115200,38400,9600 linux"
 pidfile="/run/${RC_SVCNAME}.pid"
 respawn_delay=2
 depend() { need bme-boot elogind; after bme-network; }
-start_pre() { [ "$port" != "$RC_SVCNAME" ] && [ -c "/dev/$port" ]; }
+start_pre() {
+    # tty4 is diagnostics only. No additional F-key login consoles.
+    case "$port" in tty1|tty2|tty3|ttyS0) ;; *) eerror "Login is disabled on $port"; return 1 ;; esac
+    [ -c "/dev/$port" ]
+}

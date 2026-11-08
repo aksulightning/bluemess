@@ -1,0 +1,5 @@
+#!/sbin/openrc-run
+# Installer-only: boot output belongs to tty4, but the first login is tty1.
+description="Select the installer login console"
+depend() { need bme-getty.tty1; after '*'; }
+start() { /usr/bin/chvt 1; }

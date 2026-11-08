@@ -33,7 +33,7 @@ Sign in at tuigreet as your ordinary user on the machine's tty1, then run
 `bluemess-desktop start` from that login. Run `bluemess-session-check`
 from tty1 or an Openbox terminal to inspect that process's session.
 
-If tty1 has no greeter, use tty2 or the serial console to log in and check
+If tty1 has no greeter, use tty2, tty3 or the serial console to log in and check
 `rc-service greetd status` and `/var/log/rc.log`. The installed system uses
 `/etc/greetd/blue-mess.toml` for tty1 and Debian's `/etc/pam.d/greetd` for
 authentication. When upgrading an earlier installation, install `greetd`
@@ -107,40 +107,53 @@ printf '%s\n' 'd /tmp/.X11-unix 1777 root root -' |
 
 ## Sound in Openbox
 
-Install PipeWire with PulseAudio and ALSA compatibility, WirePlumber, and a
-volume control.
-[Debian PipeWire audio package](https://packages.debian.org/sid/pipewire-audio)
+New images include PipeWire, WirePlumber, PulseAudio/ALSA compatibility,
+ALSA UCM profiles, Intel/SOF audio firmware and pavucontrol. The desktop
+starts one audio supervisor automatically on its own D-Bus session. Closing
+a terminal does not stop audio. Desktop logout stops the three audio daemons.
+
+As your regular user, without sudo:
 
 ```sh
-sudo apt install pipewire-audio pulseaudio-utils pavucontrol
+bluemess-audio status
+bluemess-audio test
+bluemess-audio-panel
 ```
 
-From an Openbox terminal, run `bluemess-start-audio` as your regular user.
-It waits for PipeWire before starting WirePlumber and `pipewire-pulse`.
+The test plays a short sample through PipeWire. It preserves the current
+mute and volume settings. Select and unmute the intended output under
+**Output Devices**; check **Playback** for an application's route and
+**Configuration** for disabled card profiles. A dummy output is a failure,
+not evidence of working audio. A VM must expose a sound card and have a
+working host audio backend.
+
+If a daemon has failed, the manager retries up to three times. Request a
+fresh stack with `bluemess-audio restart`. The older `bluemess-start-audio`
+and `bluemess-audio-start` names now request that same restart. If the
+manager has exhausted its retries, inspect the log and restart the desktop.
+
+```sh
+cat ~/.local/state/blue-mess/audio.log
+bluemess-session-check
+cat /proc/asound/cards
+aplay -l
+sudo dmesg | grep -Ei 'snd|sof|audio|firmware'
+```
+
+`XDG_RUNTIME_DIR` must refer to the user's private mode-0700 elogind runtime
+directory. Do not create a shared replacement or run PipeWire with sudo.
 The sockets live at `$XDG_RUNTIME_DIR/pipewire-0` and
-`$XDG_RUNTIME_DIR/pulse/native`. If the PulseAudio socket already responds,
-the command reports the running server and exits. Stop any incomplete
-manual audio session before starting a new one. Keep the terminal open
-while using the new session. Press Ctrl+C there to stop the processes it
-started. The earlier command name `bluemess-audio-start` is an alias.
+`$XDG_RUNTIME_DIR/pulse/native`. Stop older manually launched audio processes
+before restarting the desktop; the manager will not kill unrelated servers.
 
-The launcher uses the inherited session D-Bus address when available. If
-that address is unset, it starts a private bus for the lifetime of the
-audio launcher. With an older launcher, run
-`dbus-run-session -- bluemess-start-audio` from the Openbox terminal to
-supply a bus. [D-Bus session runner manual](https://dbus.freedesktop.org/doc/dbus-run-session.1.html)
+For an older installation, install these packages before upgrading the full
+`bme-config` package, then log out of the desktop and back in:
 
-The launcher falls back to the existing `/run/user/$(id -u)` login directory
-if `XDG_RUNTIME_DIR` is unusable. If neither directory is usable, check
-`ls -ld "/run/user/$(id -u)"` and `loginctl session-status` from your regular
-user session. Elogind creates and owns the lifecycle of that directory.
-[Debian pam_elogind manual](https://manpages.debian.org/unstable/libpam-elogind/pam_elogind.8.en.html)
-
-Run `bluemess-audio-panel` from a second Openbox terminal to open
-`pavucontrol` against a responding server. It checks `PULSE_SERVER`,
-`PULSE_RUNTIME_PATH`, `XDG_RUNTIME_DIR` and the login runtime directory.
-Select and unmute the intended output under **Output Devices**. If an
-application is already playing, check its route under **Playback**.
+```sh
+sudo apt install pipewire pipewire-bin pipewire-pulse pipewire-alsa wireplumber \
+  pulseaudio-utils pavucontrol alsa-utils alsa-ucm-conf \
+  firmware-sof-signed firmware-intel-sound
+```
 
 `bluemess-fix-audio detect` shows ALSA cards, the connected server, available
 card profiles, and current playback outputs. `bluemess-fix-audio server`
@@ -161,12 +174,8 @@ This disables both its inputs and outputs. Use `enable CARD PROFILE` to
 restore a profile. The panel lets you select the default playback output.
 [Debian pactl manual](https://manpages.debian.org/unstable/pulseaudio-utils/pactl.1.en.html)
 
-On an older installation, copy the three [audio commands](../packages/bme-config/root/usr/bin/)
-into the same directory, make them executable, and run them with `./`.
-
-For manual startup, `Host is down` means a client could not reach the
-PipeWire core. Start `pipewire` in the foreground, then check
-`pw-cli info 0` from a second terminal in the same desktop session.
-RTKit `ServiceUnknown` warnings concern real-time scheduling. A successful
-core query confirms the server is reachable.
-[PipeWire daemon documentation](https://docs.pipewire.org/page_daemon.html)
+TTY4 shows kernel, boot and system diagnostics, with no login prompt. Use
+Ctrl+Alt+F2 or Ctrl+Alt+F3 to log in for repairs, and Ctrl+Alt+F1 to return
+to the login/desktop VT. Logs remain in `/var/log/messages`, `/var/log/rc.log`
+and the user's audio log. Missing sound cards or firmware must be resolved
+before PipeWire can provide a hardware output.

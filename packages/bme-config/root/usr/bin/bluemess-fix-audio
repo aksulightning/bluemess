@@ -48,7 +48,7 @@ find_pulse_server() {
             return 0
         fi
     done
-    echo 'No reachable audio server. Run bluemess-start-audio from Openbox.' >&2
+    echo 'No reachable audio server. Run bluemess-audio status from Openbox; check ~/.local/state/blue-mess/audio.log.' >&2
     return 1
 }
 

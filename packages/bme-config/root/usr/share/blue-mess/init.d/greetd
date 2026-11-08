@@ -5,8 +5,13 @@ command=/usr/sbin/greetd
 command_args="--config /etc/greetd/blue-mess.toml"
 supervisor=supervise-daemon
 pidfile=/run/bme-greetd.pid
+respawn_delay=2
+respawn_max=5
+respawn_period=60
+output_logger="/usr/bin/logger -t greetd"
+error_logger="/usr/bin/logger -t greetd"
 
-depend() { need bme-boot elogind; after bme-network; }
+depend() { need bme-boot elogind bme-syslog; after bme-network; }
 
 start_pre() {
     if [ -L /etc/runlevels/default/bme-getty.tty1 ] ||

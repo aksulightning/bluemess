@@ -51,6 +51,12 @@ bootstrap() {
     if [[ $role == target ]]; then
         native_services+=(greetd)
         [[ -x $root/usr/bin/tuigreet ]]
+        for program in pipewire pw-cli pw-play pipewire-pulse wireplumber wpctl pactl pavucontrol; do
+            chroot "$root" /bin/sh -c 'command -v "$1"' sh "$program"
+        done
+        [[ -s $root/usr/share/sounds/alsa/Front_Center.wav ]]
+        [[ -d $root/usr/share/alsa/ucm2 ]]
+        [[ -f $root/etc/default/grub.d/90-blue-mess.cfg ]]
         grep -Eq '^[[:space:]]*@include[[:space:]]+common-session[[:space:]]*$' "$root/etc/pam.d/greetd"
         chroot "$root" getent passwd _greetd >/dev/null
     fi
@@ -85,6 +91,8 @@ bootstrap() {
     [[ $(readlink "$root/bin/sh") == dash ]]
     [[ -x $root/usr/sbin/openrc-init && -x $root/bin/bash ]]
     for applet in ash udhcpc syslogd klogd; do chroot "$root" busybox --list | grep -x "$applet" >/dev/null; done
+    chroot "$root" busybox syslogd --help > "out/logs/$role-syslog-help.log" 2>&1 || :
+    grep -q -- '-f FILE' "out/logs/$role-syslog-help.log"
     chroot "$root" busybox ash -c 'test "$(printf "%s" ash)" = ash; set -eu; : "$((1+1))"'
     if chroot "$root" dpkg-query -W -f='${db:Status-Status}\n' systemd 2>/dev/null | grep -x installed >/dev/null; then
         echo 'Unexpected systemd manager installed' >&2; exit 1
@@ -134,7 +142,7 @@ serial --unit=0 --speed=115200
 terminal_input console serial
 terminal_output console serial
 menuentry 'Blue Mess Edition installer (UEFI amd64)' {
-  linux /live/vmlinuz boot=live components quiet init=/sbin/openrc-init console=tty0 console=ttyS0,115200n8
+  linux /live/vmlinuz boot=live components init=/sbin/openrc-init console=ttyS0,115200n8 console=tty4
   initrd /live/initrd.img
 }
 GRUB

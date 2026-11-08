@@ -1,5 +1,27 @@
 # Implementation record
 
+## 2026-11-08: three login VTs, diagnostics on tty4 and automatic PipeWire
+
+- Installed tty1 uses greetd/tuigreet, tty2 and tty3 use agetty, and tty4
+  is diagnostics only. The native getty refuses other numbered terminals.
+  Serial recovery remains separate from the F-key console layout.
+- Both Linux boot paths select tty4 as /dev/console. Kernel output stays
+  there while the greeter selects tty1; userspace syslog and supervised
+  daemon messages are mirrored to tty4 and retained in /var/log/messages.
+  The live installer selects tty1 after startup without a tty4 getty.
+- The target explicitly includes PipeWire, WirePlumber, PulseAudio/ALSA
+  compatibility, UCM profiles, pavucontrol and Intel/SOF audio firmware.
+  One user-session script owns startup, readiness, duplicate prevention,
+  bounded process recovery, restart, diagnostics and playback testing.
+  The desktop starts it automatically and stops it on logout.
+- Added real subprocess lifecycle tests, root-layout/GRUB tests, QEMU HDA
+  playback capture, real tty2/tty3 authentication and tty4 routing probes.
+  Playback is checked initially and on all three benchmark boots; missing
+  or silent playback blocks the validated artifact gate.
+- All 36 local tests passed under dash, shell/Python syntax checks passed,
+  and the bme-config Debian package assembled successfully. Docker, QEMU and BusyBox are unavailable locally;
+  hosted ISO/VM validation and physical playback are not yet established.
+
 ## 2026-11-08: greetd and tuigreet on installed tty1
 
 - The pinned Debian Sid snapshot provides greetd 0.10.3-7 and tuigreet
