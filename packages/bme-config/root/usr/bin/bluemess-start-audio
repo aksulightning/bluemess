@@ -1,0 +1,89 @@
+#!/usr/bin/ash
+# Run a temporary PipeWire stack in the current desktop session.
+set -eu
+
+user_id=$(id -u)
+if [ "$user_id" -eq 0 ] || [ -z "${DISPLAY:-}" ]; then
+    echo 'Run bluemess-start-audio as your ordinary user from an Openbox terminal.' >&2
+    exit 1
+fi
+
+runtime_dir_is_usable() {
+    case "$1" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    [ -d "$1" ] && [ -w "$1" ] && [ -x "$1" ] &&
+        [ "$(stat -Lc %u -- "$1")" = "$user_id" ]
+}
+
+configured_runtime_dir=${XDG_RUNTIME_DIR:-}
+if ! runtime_dir_is_usable "$configured_runtime_dir"; then
+    XDG_RUNTIME_DIR=/run/user/$user_id
+    if ! runtime_dir_is_usable "$XDG_RUNTIME_DIR"; then
+        printf 'No usable audio runtime directory. Checked XDG_RUNTIME_DIR=%s and %s.\n' \
+            "${configured_runtime_dir:-unset}" "$XDG_RUNTIME_DIR" >&2
+        echo 'Check the directory ownership and your elogind session from tty1.' >&2
+        exit 1
+    fi
+    printf 'Using login runtime directory %s\n' "$XDG_RUNTIME_DIR"
+fi
+export XDG_RUNTIME_DIR PIPEWIRE_RUNTIME_DIR="$XDG_RUNTIME_DIR" PIPEWIRE_REMOTE=pipewire-0
+export PULSE_RUNTIME_PATH="$XDG_RUNTIME_DIR/pulse"
+pulse_server="unix:$PULSE_RUNTIME_PATH/native"
+
+if command -v pactl >/dev/null 2>&1 &&
+    timeout 2 pactl -s "$pulse_server" info >/dev/null 2>&1; then
+    printf 'Audio server already responds at %s. Open bluemess-audio-panel.\n' "$pulse_server"
+    exit 0
+fi
+
+for program in pipewire pw-cli wireplumber pipewire-pulse; do
+    command -v "$program" >/dev/null 2>&1 || {
+        echo "Missing $program. Install pipewire-audio first." >&2
+        exit 1
+    }
+done
+
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    echo 'Starting a private D-Bus session for audio.'
+    exec dbus-run-session -- ash "$0" "$@"
+fi
+
+exec 9>"$XDG_RUNTIME_DIR/bluemess-audio.lock"
+if ! flock -n 9 || pgrep -u "$user_id" -x 'pipewire|wireplumber|pipewire-pulse' >/dev/null; then
+    echo 'Audio processes already exist for this user. Stop the previous audio session first.' >&2
+    exit 1
+fi
+
+children=
+cleanup() {
+    trap - EXIT HUP INT TERM
+    for pid in $children; do kill "$pid" 2>/dev/null || :; done
+    for pid in $children; do wait "$pid" 2>/dev/null || :; done
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+
+PIPEWIRE_CORE=pipewire-0 pipewire &
+children=$!
+attempt=0
+until timeout 1 pw-cli info 0 >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 10 ] || ! kill -0 "$children" 2>/dev/null; then
+        echo 'PipeWire did not become reachable. Check its messages above and the session runtime directory.' >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+wireplumber &
+children="$children $!"
+pipewire-pulse &
+children="$children $!"
+echo 'Audio processes started. Open bluemess-audio-panel in another terminal. Press Ctrl+C here to stop audio.'
+
+while kill -0 $children 2>/dev/null; do sleep 1; done
+echo 'An audio process exited. Check its messages above.' >&2
+exit 1

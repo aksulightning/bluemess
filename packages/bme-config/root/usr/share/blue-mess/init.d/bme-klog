@@ -1,0 +1,7 @@
+#!/sbin/openrc-run
+description="Kernel log forwarding"
+command=/usr/bin/busybox
+command_args="klogd -n"
+supervisor=supervise-daemon
+pidfile=/run/bme-klog.pid
+depend() { need bme-syslog; }

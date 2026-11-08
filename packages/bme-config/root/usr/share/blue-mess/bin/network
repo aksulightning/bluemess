@@ -1,0 +1,37 @@
+#!/usr/bin/ash
+set -eu
+interface=
+mode=auto
+[ ! -r /etc/blue-mess/network.conf ] || . /etc/blue-mess/network.conf
+ip link set lo up
+if [ -z "$interface" ]; then
+    for path in /sys/class/net/*; do
+        candidate=${path##*/}
+        [ "$candidate" != lo ] || continue
+        [ ! -d "$path/wireless" ] || continue
+        [ ! -d "$path/device" ] || { interface=$candidate; break; }
+    done
+fi
+if [ -z "$interface" ]; then
+    echo 'No configured network interface; configure /etc/blue-mess/network.conf' >&2
+    trap 'exit 0' TERM INT
+    while :; do sleep 60 & wait "$!"; done
+fi
+ip link show dev "$interface" >/dev/null
+ip link set dev "$interface" up
+printf '%s\n' "$interface" > /run/bme-network.interface
+wifi_pid=
+cleanup() {
+    [ -z "$wifi_pid" ] || kill "$wifi_pid" 2>/dev/null || :
+}
+trap cleanup EXIT
+trap 'exit 0' TERM INT
+if [ "$mode" = wifi ]; then
+    [ -r /etc/wpa_supplicant/bme.conf ] || { echo 'Missing Wi-Fi configuration' >&2; exit 1; }
+    /sbin/wpa_supplicant -i "$interface" -c /etc/wpa_supplicant/bme.conf &
+    wifi_pid=$!
+fi
+/usr/bin/busybox udhcpc -f -R -i "$interface" -s /usr/share/blue-mess/bin/udhcpc &
+dhcp_pid=$!
+trap 'kill "$dhcp_pid" 2>/dev/null || :; exit 0' TERM INT
+wait "$dhcp_pid"

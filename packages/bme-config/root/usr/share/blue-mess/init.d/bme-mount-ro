@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Final read-only root remount"
+depend() { after '*'; keyword -docker -lxc; }
+start() {
+    ebegin "Remounting root filesystem read-only"
+    sync
+    mount -o remount,ro /
+    eend $?
+}

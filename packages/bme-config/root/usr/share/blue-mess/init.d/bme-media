@@ -1,0 +1,13 @@
+#!/sbin/openrc-run
+description="Locate read-only installation payload"
+depend() { need bme-boot; before bme-getty.tty1 bme-getty.ttyS0; }
+start() {
+    for path in /run/live/medium /lib/live/mount/medium; do
+        if [ -f "$path/bme/rootfs.tar.zst" ]; then
+            ln -sfn "$path" /run/bme-media
+            return 0
+        fi
+    done
+    eerror "Installation payload was not found on the boot medium"
+    return 1
+}

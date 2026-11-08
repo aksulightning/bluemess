@@ -1,0 +1,67 @@
+#!/usr/bin/ash
+# Inspect or change a card profile through the current audio server.
+set -eu
+
+usage() {
+    cat <<'EOF'
+Usage: bluemess-fix-audio [detect|server]
+       bluemess-fix-audio enable CARD PROFILE
+       bluemess-fix-audio disable CARD
+
+detect   Show ALSA cards, audio server profiles, and playback outputs
+server   Print the reachable PulseAudio server address
+enable   Activate a named profile on a card
+disable  Set a card profile to off, disabling its inputs and outputs
+EOF
+}
+
+action=${1:-detect}
+[ "$#" -eq 0 ] || shift
+case "$action:$#" in
+    detect:0|server:0|enable:2|disable:1) ;;
+    -h:0|--help:0) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+esac
+
+user_id=$(id -u)
+if [ "$user_id" -eq 0 ]; then
+    echo 'Run bluemess-fix-audio as your regular user.' >&2
+    exit 1
+fi
+if [ "$action" = detect ]; then
+    printf 'ALSA cards\n'
+    cat /proc/asound/cards || :
+fi
+if ! command -v pactl >/dev/null 2>&1; then
+    echo 'Missing pactl. Install pulseaudio-utils first.' >&2
+    exit 1
+fi
+
+find_pulse_server() {
+    for candidate in "${PULSE_SERVER:-}" \
+        "${PULSE_RUNTIME_PATH:+unix:$PULSE_RUNTIME_PATH/native}" \
+        "${XDG_RUNTIME_DIR:+unix:$XDG_RUNTIME_DIR/pulse/native}" \
+        "unix:/run/user/$user_id/pulse/native"; do
+        [ -n "$candidate" ] || continue
+        if timeout 2 pactl -s "$candidate" info >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    echo 'No reachable audio server. Run bluemess-start-audio from Openbox.' >&2
+    return 1
+}
+
+server=$(find_pulse_server)
+case "$action" in
+    server) printf '%s\n' "$server" ;;
+    detect)
+        printf '\nAudio server and card profiles\n'
+        pactl -s "$server" info
+        pactl -s "$server" list cards
+        printf '\nPlayback outputs\n'
+        pactl -s "$server" list short sinks
+        ;;
+    enable) pactl -s "$server" -- set-card-profile "$1" "$2" ;;
+    disable) pactl -s "$server" -- set-card-profile "$1" off ;;
+esac

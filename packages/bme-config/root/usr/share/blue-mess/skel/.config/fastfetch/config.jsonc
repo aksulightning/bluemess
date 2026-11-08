@@ -1,0 +1,4 @@
+{
+  "logo": {"type": "none"},
+  "modules": [{"type": "custom", "format": "Blue Mess Edition (Debian Sid)"}, "kernel", "shell", "wm", "terminal", "memory"]
+}

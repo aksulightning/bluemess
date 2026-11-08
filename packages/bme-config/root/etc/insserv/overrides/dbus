@@ -1,0 +1,8 @@
+### BEGIN INIT INFO
+# Provides:          dbus
+# Required-Start:
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Blue Mess native OpenRC dbus service
+### END INIT INFO

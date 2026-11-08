@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+# Debian LSB compatibility metadata lives in /etc/insserv/overrides.
+description="Authenticated tuigreet login on tty1"
+command=/usr/sbin/greetd
+command_args="--config /etc/greetd/blue-mess.toml"
+supervisor=supervise-daemon
+pidfile=/run/bme-greetd.pid
+
+depend() { need bme-boot elogind; after bme-network; }
+
+start_pre() {
+    if [ -L /etc/runlevels/default/bme-getty.tty1 ] ||
+        rc-service bme-getty.tty1 status >/dev/null 2>&1; then
+        eerror 'Disable and stop bme-getty.tty1 before starting greetd.'
+        return 1
+    fi
+    [ -c /dev/tty1 ] && [ -x /usr/bin/tuigreet ] &&
+        [ -r /etc/greetd/blue-mess.toml ] && getent passwd _greetd >/dev/null || {
+        eerror 'greetd requires tty1, tuigreet, its Blue Mess configuration and the Debian greeter account.'
+        return 1
+    }
+}

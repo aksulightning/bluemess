@@ -1,0 +1,20 @@
+#!/usr/bin/ash
+set -eu
+case "${1:-}" in
+    deconfig) ip address flush dev "$interface";;
+    bound|renew)
+        ip address flush dev "$interface"
+        # BusyBox's ip accepts a dotted-quad netmask prefix.
+        ip address add "$ip/${subnet:-255.255.255.0}" dev "$interface"
+        ip route flush default dev "$interface" || :
+        for gateway in ${router:-}; do
+            ip route add default via "$gateway" dev "$interface" || :
+            break
+        done
+        tmp=$(mktemp /run/resolv.conf.XXXXXX)
+        for server in ${dns:-}; do printf 'nameserver %s\n' "$server"; done > "$tmp"
+        chmod 644 "$tmp"
+        cat "$tmp" > /etc/resolv.conf
+        rm -f "$tmp"
+        ;;
+esac

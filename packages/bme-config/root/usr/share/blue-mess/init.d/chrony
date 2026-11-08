@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+# Native OpenRC service. Debian LSB compatibility metadata is kept separately
+# in /etc/insserv/overrides so lsb2rcconf cannot misclassify this script.
+description="Network time synchronization"
+command=/usr/sbin/chronyd
+command_args="-n -F 1"
+supervisor=supervise-daemon
+pidfile=/run/bme-chrony.pid
+depend() { need bme-boot; use bme-network; }
+start_pre() { mkdir -p /run/chrony; chown _chrony:_chrony /run/chrony; }

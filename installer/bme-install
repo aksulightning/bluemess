@@ -1,0 +1,8 @@
+#!/usr/bin/ash
+# Blue Mess installer: POSIX shell subset, tested with BusyBox ash.
+set -eu
+umask 077
+BME_LIB=${BME_LIB:-/usr/lib/bme/install.sh}
+# shellcheck source=installer/lib/install.sh
+. "$BME_LIB"
+bme_main "$@"

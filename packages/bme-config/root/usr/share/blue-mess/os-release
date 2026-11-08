@@ -1,0 +1,9 @@
+PRETTY_NAME="Blue Mess Edition (Debian Sid)"
+NAME="Blue Mess Edition"
+ID=bluemess
+ID_LIKE=debian
+VERSION="development (Sid)"
+VERSION_CODENAME=sid
+HOME_URL="https://github.com/aksulightning/bluemess"
+SUPPORT_URL="https://github.com/aksulightning/bluemess/issues"
+BUG_REPORT_URL="https://github.com/aksulightning/bluemess/issues"

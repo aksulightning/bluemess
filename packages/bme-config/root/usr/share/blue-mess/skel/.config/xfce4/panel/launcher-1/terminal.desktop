@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+Comment=Open a BusyBox ash terminal
+Exec=xterm -ls -e /usr/bin/ash
+Icon=utilities-terminal-symbolic
+Terminal=false
+StartupNotify=true

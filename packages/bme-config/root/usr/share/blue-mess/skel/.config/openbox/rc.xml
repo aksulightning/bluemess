@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <focus><focusNew>yes</focusNew><followMouse>no</followMouse></focus>
+  <theme><name>Clearlooks</name><titleLayout>NLIMC</titleLayout></theme>
+  <desktops><number>2</number><firstdesk>1</firstdesk></desktops>
+  <keyboard>
+    <keybind key="C-A-t"><action name="Execute"><command>xterm -ls -e /usr/bin/ash</command></action></keybind>
+    <keybind key="W-Return"><action name="Execute"><command>xterm -ls -e /usr/bin/ash</command></action></keybind>
+    <keybind key="A-Tab"><action name="NextWindow"/></keybind>
+    <keybind key="A-S-Tab"><action name="PreviousWindow"/></keybind>
+    <keybind key="A-F4"><action name="Close"/></keybind>
+    <keybind key="A-F7"><action name="Move"/></keybind>
+    <keybind key="A-F8"><action name="Resize"/></keybind>
+    <keybind key="W-space"><action name="ShowMenu"><menu>root-menu</menu></action></keybind>
+    <keybind key="W-d"><action name="ToggleShowDesktop"/></keybind>
+    <keybind key="W-Left"><action name="DesktopLeft"/></keybind>
+    <keybind key="W-Right"><action name="DesktopRight"/></keybind>
+  </keyboard>
+  <mouse>
+    <dragThreshold>1</dragThreshold>
+    <doubleClickTime>500</doubleClickTime>
+    <context name="Frame">
+      <mousebind button="A-Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="A-Left" action="Drag"><action name="Move"/></mousebind>
+      <mousebind button="A-Right" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="A-Right" action="Drag"><action name="Resize"/></mousebind>
+    </context>
+    <context name="Titlebar">
+      <mousebind button="Left" action="Drag"><action name="Move"/></mousebind>
+      <mousebind button="Left" action="DoubleClick"><action name="ToggleMaximize"/></mousebind>
+    </context>
+    <context name="Titlebar Top Right Bottom Left TLCorner TRCorner BRCorner BLCorner">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/><action name="Unshade"/></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>client-menu</menu></action></mousebind>
+    </context>
+    <context name="Top">
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>top</edge></action></mousebind>
+    </context>
+    <context name="Bottom">
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>bottom</edge></action></mousebind>
+    </context>
+    <context name="Left">
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>left</edge></action></mousebind>
+    </context>
+    <context name="Right">
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>right</edge></action></mousebind>
+    </context>
+    <context name="TLCorner TRCorner BRCorner BLCorner">
+      <mousebind button="Left" action="Drag"><action name="Resize"/></mousebind>
+    </context>
+    <context name="Client">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Middle" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+    </context>
+    <context name="Icon">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>client-menu</menu></action></mousebind>
+    </context>
+    <context name="Iconify">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Click"><action name="Iconify"/></mousebind>
+    </context>
+    <context name="Maximize">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Click"><action name="ToggleMaximize"/></mousebind>
+    </context>
+    <context name="Close">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Click"><action name="Close"/></mousebind>
+    </context>
+    <context name="Root">
+      <mousebind button="Right" action="Press"><action name="ShowMenu"><menu>root-menu</menu></action></mousebind>
+    </context>
+  </mouse>
+  <menu><file>menu.xml</file></menu>
+</openbox_config>
