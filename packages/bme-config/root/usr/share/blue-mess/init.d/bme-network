@@ -2,8 +2,10 @@
 description="One selected wired or Wi-Fi DHCP connection"
 command=/usr/share/blue-mess/bin/network
 supervisor=supervise-daemon
+output_logger="exec /usr/bin/busybox logger -t bme-network"
+error_logger="exec /usr/bin/busybox logger -t bme-network"
 pidfile=/run/bme-network.pid
-depend() { need bme-boot; before chrony; }
+depend() { need bme-boot bme-syslog; before chrony; }
 stop_post() {
     [ ! -f /run/bme-network.interface ] || {
         iface=$(cat /run/bme-network.interface)

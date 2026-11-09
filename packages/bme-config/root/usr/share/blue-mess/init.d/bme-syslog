@@ -1,7 +1,11 @@
 #!/sbin/openrc-run
 description="BusyBox rotating system log"
 command=/usr/bin/busybox
-command_args="syslogd -n -O /var/log/messages -s 256 -b 2"
+command_args="syslogd -n -f /etc/blue-mess/syslog.conf -O /var/log/messages -s 256 -b 2"
+output_log=/dev/tty4
+error_log=/dev/tty4
 supervisor=supervise-daemon
 pidfile=/run/bme-syslog.pid
-depend() { need bme-boot; }
+depend() { need bme-boot; before dbus elogind greetd; }
+
+start_pre() { stty -F /dev/tty4 -echo; }

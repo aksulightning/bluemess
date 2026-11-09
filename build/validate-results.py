@@ -18,6 +18,13 @@ for name in ('SHA256SUMS', 'target-packages.tsv', 'installer-packages.tsv',
 verification = json.loads((out / 'verification/results.json').read_text())
 if verification.get('status') != 'passed':
     raise SystemExit('VM verification is incomplete or failed')
+audio = verification.get('audio', [])
+if len(audio) != 4 or any(not capture.get('passed') or capture.get('audible_samples', 0) < 1000 for capture in audio):
+    raise SystemExit('Initial and three-boot audio playback verification failed')
+for capture in audio:
+    path = out / 'verification' / capture['capture']
+    if not path.is_file() or path.stat().st_size <= 44:
+        raise SystemExit('Audio playback capture is missing or empty')
 iso = out / verification['iso']
 with iso.open('rb') as stream:
     digest = hashlib.file_digest(stream, 'sha256').hexdigest()

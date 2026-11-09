@@ -1,0 +1,153 @@
+#!/usr/bin/ash
+# One session-owned supervisor for PipeWire, WirePlumber and pipewire-pulse.
+set -eu
+
+fail() { printf 'Audio: %s\n' "$*" >&2; exit 1; }
+action=${1:-status}
+[ "$#" -le 1 ] || fail 'Usage: bluemess-audio [status|restart|test|run]'
+case "$action" in status|restart|test|run) ;; *) fail 'Usage: bluemess-audio [status|restart|test|run]' ;; esac
+user_id=$(id -u)
+[ "$user_id" -ne 0 ] || fail 'Run this as your ordinary user, without sudo.'
+runtime=${XDG_RUNTIME_DIR:-/run/user/$user_id}
+case "$runtime" in /*) ;; *) fail 'XDG_RUNTIME_DIR must be an absolute path.' ;; esac
+[ -d "$runtime" ] && [ ! -L "$runtime" ] && [ -w "$runtime" ] &&
+    [ "$(stat -Lc %u -- "$runtime")" = "$user_id" ] &&
+    [ "$(stat -Lc %a -- "$runtime")" = 700 ] ||
+    fail 'No private elogind runtime directory. Check bluemess-session-check and log in again.'
+export XDG_RUNTIME_DIR="$runtime" PIPEWIRE_RUNTIME_DIR="$runtime" PIPEWIRE_REMOTE=pipewire-0
+export PULSE_RUNTIME_PATH="$runtime/pulse" PULSE_SERVER="unix:$runtime/pulse/native"
+control=$runtime/blue-mess-audio
+umask 077
+mkdir -p "$control"
+state=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess
+
+manager_running() {
+    # flock is the authority, not an unvalidated PID from a previous process.
+    ! flock -n "$control/lock" true
+}
+server_ready() {
+    timeout 2 pw-cli info 0 >/dev/null 2>&1 &&
+        timeout 2 pactl info >/dev/null 2>&1
+}
+output_ready() {
+    sink=$(timeout 2 pactl get-default-sink) || return 1
+    case "$sink" in ''|auto_null) return 1 ;; esac
+    timeout 2 wpctl inspect @DEFAULT_AUDIO_SINK@ >/dev/null 2>&1
+}
+
+case "$action" in
+    status|test)
+        manager_running || fail "Manager is stopped. Start the desktop; see $state/audio.log."
+        server_ready || fail "PipeWire is not ready; see $state/audio.log."
+        timeout 3 wpctl status
+        output_ready || fail 'No playback output. Check the sound device, firmware and card profile in bluemess-audio-panel.'
+        if [ "$action" = test ]; then
+            printf 'Playing through %s (current volume and mute settings are preserved).\n' "$sink"
+            timeout 15 pw-play --volume=0.25 /usr/share/sounds/alsa/Front_Center.wav
+        fi
+        exit 0
+        ;;
+    restart)
+        manager_running || fail 'Manager is stopped. Log out of the desktop and start it again.'
+        # Serialize requests; never signal PIDs that may have been reused.
+        exec 8>"$control/request.lock"
+        flock -w 5 8 || fail 'Another restart is in progress.'
+        : > "$control/restart"
+        attempt=0
+        while [ -e "$control/restart" ]; do
+            manager_running || fail "Manager exited; see $state/audio.log."
+            attempt=$((attempt + 1))
+            [ "$attempt" -le 45 ] || fail "Restart timed out; see $state/audio.log."
+            sleep 1
+        done
+        server_ready || fail "Restart failed; see $state/audio.log."
+        echo 'PipeWire audio restarted.'
+        exit 0
+        ;;
+esac
+
+[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || fail 'Start audio inside the desktop session D-Bus.'
+for program in pipewire pw-cli pw-play wireplumber wpctl pipewire-pulse pactl flock timeout; do
+    command -v "$program" >/dev/null 2>&1 || fail "Missing required program: $program"
+done
+exec 9>"$control/lock"
+flock -n 9 || exit 0
+mkdir -p "$state"
+# Bound the log across desktop sessions; stdout/stderr never reach the login VT.
+[ ! -f "$state/audio.log" ] || mv -f "$state/audio.log" "$state/audio.log.old"
+exec >> "$state/audio.log" 2>&1
+children=
+any_child_alive() {
+    for pid in $children; do
+        if kill -0 "$pid" 2>/dev/null; then return 0; fi
+    done
+    return 1
+}
+stop_stack() {
+    rm -f "$control/ready"
+    for pid in $children; do kill "$pid" 2>/dev/null || :; done
+    attempt=0
+    while any_child_alive; do
+        attempt=$((attempt + 1))
+        [ "$attempt" -lt 4 ] || break
+        sleep 1
+    done
+    for pid in $children; do kill -KILL "$pid" 2>/dev/null || :; done
+    for pid in $children; do wait "$pid" 2>/dev/null || :; done
+    children=
+}
+cleanup() {
+    trap - EXIT HUP INT TERM
+    stop_stack
+    rm -f "$control/restart"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+
+# Do not kill or silently adopt an unrelated manually launched audio server.
+if pgrep -u "$user_id" -x 'pipewire|wireplumber|pipewire-pulse|pulseaudio' >/dev/null; then
+    fail 'An unmanaged audio process already exists. Stop it, then log out and back in.'
+fi
+start_stack() {
+    echo 'Starting PipeWire audio.'
+    PIPEWIRE_CORE=pipewire-0 pipewire 9>&- &
+    children=$!
+    attempt=0
+    until timeout 1 pw-cli info 0 >/dev/null 2>&1; do
+        attempt=$((attempt + 1))
+        [ "$attempt" -lt 10 ] && kill -0 "$children" 2>/dev/null || return 1
+        sleep 1
+    done
+    wireplumber 9>&- &
+    children="$children $!"
+    pipewire-pulse 9>&- &
+    children="$children $!"
+    attempt=0
+    until server_ready && timeout 2 wpctl status >/dev/null 2>&1; do
+        attempt=$((attempt + 1))
+        [ "$attempt" -lt 10 ] && kill -0 $children 2>/dev/null || return 1
+        sleep 1
+    done
+    : > "$control/ready"
+    echo 'PipeWire, WirePlumber and PulseAudio compatibility are ready.'
+}
+
+failures=0
+while :; do
+    started=false
+    if start_stack; then
+        started=true
+        rm -f "$control/restart"
+        while kill -0 $children 2>/dev/null && [ ! -e "$control/restart" ]; do sleep 1; done
+    fi
+    stop_stack
+    if [ "$started" = true ] && [ -e "$control/restart" ]; then
+        failures=0
+    else
+        failures=$((failures + 1))
+        [ "$failures" -le 3 ] || fail 'Audio repeatedly exited. See this log and run bluemess-session-check.'
+        echo "Audio process exited; recovery attempt $failures/3."
+    fi
+    sleep 1
+done

@@ -5,6 +5,7 @@ Only disposable qcow2 files created by this program are attached as hard disks.
 No guest-side verification hook, fixture media or CI credential enters the ISO.
 """
 import argparse
+from array import array
 from contextlib import suppress
 import hashlib
 import json
@@ -21,12 +22,14 @@ import subprocess
 import sys
 import time
 import traceback
+import wave
 
 from benchmark import MEMORY_LIMIT_MIB, parse_meminfo, summarize
 
 CONFIG = {'architecture': 'amd64', 'ram_MiB': 1024, 'vcpus': 2,
           'machine': 'pc-q35-8.2', 'cpu': 'qemu64', 'acceleration': 'tcg',
           'graphics': 'std VGA', 'resolution': '1024x768',
+          'audio': 'Intel HDA duplex, 48 kHz stereo s16 WAV capture',
           'settle_seconds': 60, 'fresh_boots': 3, 'swap_used_kib': 0,
           'metric': '(MemTotal_kib - MemAvailable_kib) / 1024',
           'threshold_MiB': MEMORY_LIMIT_MIB}
@@ -79,6 +82,23 @@ class QMP:
             elif 'return' in result:
                 return result['return']
 
+    def chord(self, *codes):
+        # Pace individual PS/2 transitions under TCG. QMP acknowledges enqueueing,
+        # not guest delivery; a simultaneous chord can outrun guest input handling.
+        def key(code, down):
+            self.command('input-send-event', {'events': [{'type': 'key', 'data': {
+                'down': down, 'key': {'type': 'qcode', 'data': code}}}]})
+            time.sleep(.2)
+        # Clear any inherited modifier state before pressing the chord.
+        for code in reversed(codes):
+            key(code, False)
+        try:
+            for code in codes:
+                key(code, True)
+        finally:
+            for code in reversed(codes):
+                key(code, False)
+
     def type(self, text):
         punctuation = {' ': 'spc', '\n': 'ret', '-': 'minus', '.': 'dot', '/': 'slash'}
         for char in text:
@@ -112,6 +132,10 @@ class Guest:
                    '-drive', f'if=virtio,format=qcow2,file={disk}',
                    '-boot', 'order=d' if iso else 'order=c']
         command += ['-nic', 'user,model=virtio-net-pci'] if network else ['-nic', 'none']
+        self.audio_path = work / f'{phase_name}-audio.wav'
+        if not iso:
+            command += ['-audiodev', f'wav,id=bmeaudio,path={self.audio_path},out.frequency=48000,out.channels=2,out.format=s16',
+                        '-device', 'intel-hda', '-device', 'hda-duplex,audiodev=bmeaudio']
         if iso and usb_media:
             command += ['-device', 'qemu-xhci',
                         '-drive', f'if=none,id=installmedia,file={iso},format=raw,readonly=on',
@@ -236,9 +260,12 @@ def root_state(guest, output, suffix):
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 rc-status --all
-for service in bme-root udev bme-localmount bme-boot bme-network bme-syslog bme-klog dbus elogind chrony greetd bme-getty.tty2 bme-getty.ttyS0; do rc-service "$service" status; done
+for service in bme-root udev bme-localmount bme-boot bme-network bme-syslog bme-klog dbus elogind chrony greetd bme-getty.tty2 bme-getty.tty3 bme-getty.ttyS0; do rc-service "$service" status; done
 test "$(readlink /etc/runlevels/default/greetd)" = /etc/init.d/greetd
 test ! -L /etc/runlevels/default/bme-getty.tty1
+test ! -L /etc/runlevels/default/bme-getty.tty4
+grep -qw console=tty4 /proc/cmdline
+! grep -qw console=tty0 /proc/cmdline
 # State markers alone are insufficient: assert the actual daemon processes.
 ps -eo pid,ppid,user,args
 for daemon in dbus-daemon elogind chronyd greetd; do
@@ -330,8 +357,8 @@ done
 
 
 def desktop(guest, password, output, suffix, auto_start=False):
-    phase(f'{suffix}: activate tty1 and capture console before tuigreet login')
-    guest.run('chvt 1')
+    phase(f'{suffix}: assert tty1 is selected before tuigreet login')
+    guest.run('test "$(cat /sys/class/tty/tty0/active)" = tty1')
     console_state(guest, output, suffix, 'before-login')
     try:
         wait_for_greeter(guest, 'Username')
@@ -405,7 +432,7 @@ n=0; until pgrep -u tester -x xfce4-panel >/dev/null; do n=$((n+1)); test "$n" -
     for attempt in range(3):
         if guest.run('pgrep -u tester -x xterm || true').strip():
             break
-        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'ctrl'}, {'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 't'}], 'hold-time': 200})
+        guest.qmp.chord('ctrl', 'alt', 't')
         # A shortcut sent during final startup may precede the keyboard grab.
         # Wait before retrying, and never send another once the process exists.
         if guest.run('''n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || break; sleep 1; done; pgrep -u tester -x xterm || true''', timeout=30).strip():
@@ -443,6 +470,104 @@ cat /home/tester/.local/share/xorg/Xorg.0.log
     record(output, f'desktop-{suffix}.log', facts)
     guest.qmp.command('screendump', {'filename': str(output / f'desktop-{suffix}.ppm')})
 
+
+
+def console_layout(guest, password, output):
+    """Use real F-key switching, password logins, and diagnostic output probes."""
+    phase('Verify tty1/2/3 login layout and diagnostics-only tty4')
+    wait_for_greeter(guest, 'Username')
+    guest.run('test "$(cat /sys/class/tty/tty0/active)" = tty1')
+    def switch(vt):
+        guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': key}
+                                               for key in ('ctrl', 'alt', f'f{vt}')], 'hold-time': 200})
+        guest.run(f'n=0; until test "$(cat /sys/class/tty/tty0/active)" = tty{vt}; do n=$((n+1)); test "$n" -le 30 || exit 1; sleep 1; done')
+    for vt in (2, 3):
+        switch(vt)
+        guest.run(f'''n=0; until grep -aFq 'login:' /dev/vcs{vt}; do
+    n=$((n+1)); test "$n" -le 30 || exit 1; sleep 1
+done''')
+        guest.qmp.type('tester\n')
+        guest.run(f'''n=0; until grep -aFq 'Password:' /dev/vcs{vt}; do
+    n=$((n+1)); test "$n" -le 30 || exit 1; sleep 1
+done''')
+        guest.qmp.type(password + '\n')
+        guest.run(f'''n=0; until ps -t tty{vt} -o user=,comm= | grep -Eq 'tester[[:space:]]+ash$'; do
+    n=$((n+1)); test "$n" -le 30 || exit 1; sleep 1
+done''')
+        guest.qmp.type('exit\n')
+    nonce = 'bme-diagnostic-' + secrets.token_hex(6)
+    facts = guest.run(f'''set -eu
+printf '<6>{nonce}-kernel\\n' > /dev/kmsg
+printf '{nonce}-console\\n' > /dev/console
+logger -t bme-verify {nonce}-syslog
+n=0; until grep -aFq {nonce}-syslog /dev/vcs4; do
+    n=$((n+1)); test "$n" -le 30; sleep 1
+done
+grep -aFq {nonce}-kernel /dev/vcs4
+grep -aFq {nonce}-console /dev/vcs4
+! grep -aFq {nonce} /dev/vcs1
+! ps -t tty4 -o comm= | grep -Eq '(agetty|login|ash|tuigreet)'
+for vt in 4 5 6; do test ! -L /etc/runlevels/default/bme-getty.tty$vt; done
+cat /proc/cmdline
+ps -eo pid,tty,comm
+''')
+    record(output, 'console-routing.log', facts)
+    switch(4)
+    guest.qmp.command('screendump', {'filename': str(output / 'diagnostics-tty4.ppm')})
+    switch(1)
+
+
+def audio_playback(guest, output, suffix, recover=False):
+    """Capture PCM after the emulated sound card, not just a responding socket."""
+    phase(f'{suffix}: verify automatic PipeWire startup and captured playback')
+    user = 'runuser -u tester -- env XDG_RUNTIME_DIR=/run/user/$(id -u tester) '
+    facts = guest.run('''set -eu
+n=0
+until ''' + user + '''bluemess-audio status; do
+    n=$((n+1)); test "$n" -le 30; sleep 1
+done
+for daemon in pipewire wireplumber pipewire-pulse; do
+    test "$(pgrep -u tester -x "$daemon" | wc -l)" -eq 1
+done
+''' + user + '''pactl info
+''' + user + '''pactl info | grep -F PipeWire
+cat /proc/asound/cards
+''', timeout=180)
+    record(output, f'audio-{suffix}.log', facts)
+    if recover:
+        guest.run('''set -eu
+old=$(pgrep -u tester -x pipewire-pulse)
+kill "$old"
+n=0
+until test "$(pgrep -u tester -x pipewire-pulse)" != "$old" &&
+      ''' + user + '''bluemess-audio status >/dev/null 2>&1; do
+    n=$((n+1)); test "$n" -le 45; sleep 1
+done
+''' + user + '''bluemess-audio restart
+''', timeout=180)
+    # The WAV backend updates its header on close. During the run, examine
+    # newly appended stereo s16 PCM and save a standalone finalized excerpt.
+    offset = max(44, guest.audio_path.stat().st_size if guest.audio_path.exists() else 44)
+    offset += (-offset) % 4
+    guest.run(user + 'bluemess-audio test', timeout=30)
+    time.sleep(2)
+    with guest.audio_path.open('rb') as stream:
+        stream.seek(offset)
+        pcm = stream.read()
+    pcm = pcm[:len(pcm) // 4 * 4]
+    samples = array('h', pcm)
+    if sys.byteorder != 'little':
+        samples.byteswap()
+    nonzero = sum(abs(sample) > 32 for sample in samples)
+    if nonzero < 1000:
+        raise Failure(f'{suffix}: emulated sound output is silent or absent ({nonzero} audible samples)')
+    with wave.open(str(output / f'audio-{suffix}.wav'), 'wb') as recording:
+        recording.setparams((2, 2, 48000, 0, 'NONE', 'not compressed'))
+        recording.writeframes(pcm)
+    result = {'passed': True, 'samples': len(samples), 'audible_samples': nonzero,
+              'capture': f'audio-{suffix}.wav'}
+    record(output, f'audio-{suffix}.json', json.dumps(result, indent=2))
+    return result
 
 
 def window_interactions(guest, output):
@@ -651,7 +776,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
-for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
 apt-config dump | grep '^APT::Install-Recommends "false";'
 apt-config dump | grep '^APT::Install-Suggests "false";'
 dpkg --audit
@@ -669,7 +794,11 @@ test -z "$(dpkg --audit)"
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 ''', timeout=1800))
         result['checks'].append('Disk-only boot, authenticated ash/sudo, home layout, UUID filesystems, DHCP/DNS, APT policy, package install/remove and upgrade plan')
+        console_layout(guest, password, output)
+        result['checks'].append('TTY1 selected at boot; tty2/tty3 authenticate; kernel, console and syslog probes reach tty4 without a login there')
         desktop(guest, password, output, 'verification')
+        result['audio'] = [audio_playback(guest, output, 'verification', recover=True)]
+        result['checks'].append('Automatic PipeWire audio, process recovery, restart and non-silent emulated HDA playback')
         result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xterm/ash')
         window_interactions(guest, output)
         result['checks'].append('Actual XTEST titlebar drag moves the xterm window and Alt+F8 keyboard resizing changes its width')
@@ -677,7 +806,7 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         record(output, 'desktop-logout.log', guest.run('''set -eu
 runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit
 n=0
-while pgrep -u tester -x Xorg >/dev/null || pgrep -u tester -x xfce4-panel >/dev/null || pgrep -u tester -x lxpolkit >/dev/null || pgrep -u tester -f '^xfce4-power-manager --no-daemon$' >/dev/null; do
+while pgrep -u tester -x 'pipewire|wireplumber|pipewire-pulse' >/dev/null || pgrep -u tester -x Xorg >/dev/null || pgrep -u tester -x xfce4-panel >/dev/null || pgrep -u tester -x lxpolkit >/dev/null || pgrep -u tester -f '^xfce4-power-manager --no-daemon$' >/dev/null; do
     n=$((n+1)); test "$n" -le 60; sleep 1
 done
 ps -t tty1 -o pid,ppid,user,comm,args
@@ -719,6 +848,7 @@ runuser -u tester -- bluemess-desktop auto-start true
             root_state(guest, output, f'boot-{boot}')
             network(guest, output, f'boot-{boot}')
             desktop(guest, password, output, f'boot-{boot}', auto_start=True)
+            result['audio'].append(audio_playback(guest, output, f'boot-{boot}'))
             readings.append(memory(guest, output, boot))
             # Preserve each reading even if a later reboot or measurement fails.
             result['memory_readings'] = readings
@@ -739,6 +869,11 @@ runuser -u tester -- bluemess-desktop auto-start true
             # QMP screenshot is independent of a working guest serial shell.
             with suppress(Exception):
                 guest.qmp.command('screendump', {'filename': str(output / 'failure-console.ppm')})
+            with suppress(Exception):
+                guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': key}
+                                                       for key in ('ctrl', 'alt', 'f4')], 'hold-time': 200})
+                time.sleep(1)
+                guest.qmp.command('screendump', {'filename': str(output / 'failure-diagnostics-tty4.ppm')})
             with suppress(Exception):
                 console_state(guest, output, 'failure', 'final')
     finally:

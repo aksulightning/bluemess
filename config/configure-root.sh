@@ -28,7 +28,7 @@ for name in dbus elogind chrony bme-network bme-syslog bme-klog; do
     ln -s "/etc/init.d/$name" "$root/etc/runlevels/default/$name"
 done
 ln -s /etc/init.d/bme-mount-ro "$root/etc/runlevels/shutdown/bme-mount-ro"
-for port in tty1 tty2 ttyS0; do
+for port in tty1 tty2 tty3 ttyS0; do
     ln -sfn /etc/init.d/bme-getty "$root/etc/init.d/bme-getty.$port"
     if [ "$port" != tty1 ] || [ "$role" = installer ]; then
         ln -s "/etc/init.d/bme-getty.$port" "$root/etc/runlevels/default/bme-getty.$port"
@@ -40,11 +40,13 @@ rc_parallel="NO"
 rc_logger="YES"
 rc_log_path="/var/log/rc.log"
 rc_shell="/usr/bin/ash"
+rc_tty_number=4
 RC
 # Live media has a transient overlay; target root is checked by initramfs-tools.
 if [ "$role" = installer ]; then
     ln -s /etc/init.d/bme-media "$root/etc/runlevels/default/bme-media"
     printf '\nInstaller media: root password is bluemess. Run bme-install.\n' >> "$root/etc/issue"
+    ln -s /etc/init.d/bme-console "$root/etc/runlevels/default/bme-console"
 fi
 if [ "$role" = target ]; then
     test -x "$root/etc/init.d/greetd"

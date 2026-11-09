@@ -32,7 +32,11 @@ start() {
     systemd-sysusers || return 1
     systemd-tmpfiles --create --remove --boot || return 1
     [ ! -x /usr/bin/setupcon ] || setupcon --force >/dev/null 2>&1 || ewarn "Console setup unavailable"
-    [ ! -x /usr/sbin/alsactl ] || alsactl restore >/dev/null 2>&1 || :
+    # A fresh install has no saved mixer state. Initialize the card defaults
+    # once in that case; later boots preserve the user's stored settings.
+    if [ -x /usr/sbin/alsactl ]; then
+        alsactl restore >/dev/null 2>&1 || alsactl init >/dev/null 2>&1 || :
+    fi
     rm -f /run/nologin
     eend 0
 }

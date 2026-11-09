@@ -26,8 +26,10 @@ class DeliveryGate(unittest.TestCase):
             p.write_text('test fixture\n')
         (root / 'fixture.iso').write_bytes(b'synthetic fixture, not an ISO')
         (root / 'build-metadata.json').write_text('{"validated": false}')
+        (root / 'verification/audio.wav').write_bytes(b'synthetic playback fixture' * 4)
         (root / 'verification/results.json').write_text(json.dumps({
             'status': 'passed', 'iso': 'fixture.iso',
+            'audio': [{'passed': True, 'audible_samples': 1001, 'capture': 'audio.wav'} for _ in range(4)],
             'iso_sha256': hashlib.sha256((root / 'fixture.iso').read_bytes()).hexdigest()}))
         readings = [{'MemTotal_kib': MEM_TOTAL_KIB, 'MemAvailable_kib': AVAILABLE_AT_LIMIT_KIB,
                      'SwapUsed_kib': 0} for _ in range(3)]
@@ -58,6 +60,22 @@ class DeliveryGate(unittest.TestCase):
             root = Path(tmp)
             self.prepare(root)
             (root / 'target-packages.tsv').unlink()
+            self.assertNotEqual(self.run_gate(root).returncode, 0)
+
+    def test_missing_or_silent_audio_cannot_publish(self):
+        for captures in ([], [{'passed': True, 'audible_samples': 0}] * 4):
+            with self.subTest(captures=captures), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.prepare(root)
+                path = root / 'verification/results.json'
+                results = json.loads(path.read_text())
+                results['audio'] = captures
+                path.write_text(json.dumps(results))
+                self.assertNotEqual(self.run_gate(root).returncode, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.prepare(root)
+            (root / 'verification/audio.wav').unlink()
             self.assertNotEqual(self.run_gate(root).returncode, 0)
 
     def test_partial_or_over_budget_measurements_cannot_publish(self):

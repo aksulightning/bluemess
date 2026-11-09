@@ -1,8 +1,8 @@
 # Blue Mess Edition
 
 A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
-standalone Openbox, an XFCE panel and power manager, and xterm. Console login,
-then `bluemess-desktop start`. No display manager or compositor is required.
+standalone Openbox, an XFCE panel and power manager, and xterm. Greetd/tuigreet
+provides console login on tty1, then `bluemess-desktop start` opens the desktop.
 Desktop auto-start is an explicit per-user setting; normal password login remains.
 
 **Development status:** first implementation. A specific image is validated only
@@ -81,11 +81,13 @@ are also copied to `/var/log/blue-mess/install.log` on success.
 After completion, shut down, remove the installation medium, and boot the disk.
 Sign in at the tuigreet prompt on tty1 with the created account. It opens a
 BusyBox ash login shell. Run `bluemess-desktop start` (or `startx`) to open
-the desktop. tty2 and the serial console provide recovery logins.
+the desktop. tty2 and tty3 provide console logins; tty4 displays diagnostics
+and has no login prompt. No other numbered TTY has a login service. The serial
+console remains available for recovery and automated VM verification.
 To start the desktop after future tty1 logins, run `bluemess-desktop auto-start true`
 as your ordinary user, without sudo. Use `bluemess-desktop auto-start false` to
 return to console-only logins, and `bluemess-desktop status` to inspect the setting.
-Auto-start is off by default and never starts X on tty2, the serial console, SSH,
+Auto-start is off by default and never starts X on tty2/tty3, the serial console, SSH,
 or as root. Leaving Openbox returns to the authenticated text console.
 
 The bottom panel contains a terminal launcher, window list, workspace switcher,
@@ -93,6 +95,13 @@ notification area, power indicator and clock. There is no screensaver, automatic
 screen locking, idle logout, idle suspend, dimming or display blanking by default.
 Closing a laptop lid requests suspend through elogind; critical battery power
 requests a controlled shutdown. Hardware support must be checked on real laptops.
+
+PipeWire, WirePlumber and PulseAudio/ALSA compatibility are included and start
+automatically with the desktop. Closing a terminal leaves audio running;
+leaving the desktop stops its audio processes. Use `bluemess-audio status`,
+`bluemess-audio restart`, or `bluemess-audio test` as your ordinary user.
+`bluemess-audio-panel` opens the output/profile/volume controls. Diagnostics
+are saved in `~/.local/state/blue-mess/audio.log`.
 
 `build-essential`, matching kernel headers, DKMS and Lua 5.4 are included for
 local development and later driver installation. Debian's Openbox package

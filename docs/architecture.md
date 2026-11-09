@@ -23,7 +23,7 @@ Sources:
 | default | bme-network, chrony | One configured DHCP connection, DNS and time synchronization |
 | default | bme-syslog, bme-klog | Rotating system log and kernel messages |
 | default | greetd | Installed-system tty1 login through tuigreet and Debian PAM |
-| default | bme-getty.tty1, bme-getty.tty2, bme-getty.ttyS0 | agetty on tty2 and serial, plus tty1 on the live installer |
+| default | bme-getty.tty1, bme-getty.tty2, bme-getty.tty3, bme-getty.ttyS0 | agetty on tty2, tty3 and serial, plus tty1 on the live installer |
 | default, media only | bme-media | Locate the separate clean installed-system payload |
 | shutdown | bme-mount-ro | Final read-only root remount after OpenRC closes its log |
 
@@ -41,7 +41,7 @@ The kernel udev daemon may have `systemd` in its filename. That is permitted: it
 
 For Wi-Fi, create `/etc/blue-mess/network.conf` with `mode=wifi` and `interface=wlan0` (use the actual name from `ip link`). Create a mode-0600 `/etc/wpa_supplicant/bme.conf` with a `network={...}` block produced by `wpa_passphrase`, removing its commented plaintext password line. Restart `bme-network` with `rc-service bme-network restart`. Only Wi-Fi mode starts wpa_supplicant. `iw` supplies diagnostics. Intel and Realtek firmware are selected explicitly; hardware outside the included firmware coverage may need additional Sid firmware. Only one connection is managed in this first version.
 
-ALSA uses kernel sound drivers and `alsa-utils`. Use `alsamixer` to adjust mixer levels. `alsactl` saves and restores those levels. The [optional audio launcher](troubleshooting.md#sound-in-openbox) starts PipeWire for the current desktop on request. chrony performs normal network synchronization and retains its own drift state. BusyBox syslogd rotates `/var/log/messages` at 256 KiB with two backups. OpenRC keeps `/var/log/rc.log`.
+ALSA uses kernel sound drivers, UCM profiles and packaged Intel/SOF firmware. `alsactl` restores saved mixer levels, initializes defaults when no saved state is usable, and saves levels at shutdown. The desktop launches one `bluemess-audio run` supervisor on its session D-Bus. It starts PipeWire, waits for the core, then starts WirePlumber and pipewire-pulse. A per-user runtime lock prevents duplicates, process failures trigger at most three recovery attempts, and desktop logout cleans up the stack. No root audio daemon or systemd user manager is required. ALSA and PulseAudio applications connect through the PipeWire compatibility packages. Output selection and volume remain user preferences. chrony performs normal network synchronization and retains its own drift state. BusyBox syslogd rotates `/var/log/messages` at 256 KiB with two backups. OpenRC keeps `/var/log/rc.log`. Both boot paths select `console=tty4` as the final console argument, so kernel/init output stays on tty4 after switching to tty1. BusyBox syslog additionally mirrors userspace messages to tty4; kernel messages are already there. TTY4 has no getty. Only tty1, tty2 and tty3 provide numbered login consoles. The serial recovery console is separate from the F-key layout.
 
 ## Session and desktop
 

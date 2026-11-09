@@ -5,6 +5,8 @@ description="System D-Bus"
 command=/usr/bin/dbus-daemon
 command_args="--system --nofork --nopidfile"
 supervisor=supervise-daemon
+output_logger="exec /usr/bin/busybox logger -t dbus"
+error_logger="exec /usr/bin/busybox logger -t dbus"
 pidfile=/run/bme-dbus.pid
-depend() { need bme-boot; before elogind; }
+depend() { need bme-boot bme-syslog; before elogind; }
 start_pre() { mkdir -p /run/dbus; dbus-uuidgen --ensure=/etc/machine-id; }

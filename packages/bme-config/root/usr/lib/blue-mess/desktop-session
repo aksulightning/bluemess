@@ -37,6 +37,8 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
+bluemess-audio run &
+children="$children $!"
 xfce4-panel --disable-wm-check &
 children="$children $!"
 xfce4-power-manager --no-daemon &
