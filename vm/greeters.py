@@ -61,7 +61,8 @@ tr '\\000' '\\n' < /proc/"$pid"/environ | grep -E '^(DISPLAY|XAUTHORITY|DBUS_SES
     if set(values) != {'DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'XDG_RUNTIME_DIR'}:
         raise Failure('SDDM desktop lacks display authentication or session environment')
     user = 'runuser -u tester -- env ' + ' '.join(shlex.quote(k + '=' + v) for k, v in values.items()) + ' '
-    guest.run(user + "xprop -root _NET_SUPPORTING_WM_CHECK | grep -E 'window id # 0x[0-9a-f]+'")
+    # The Openbox process exists before it publishes its window-manager window.
+    guest.run('set -eu; n=0; until ' + user + "xprop -root _NET_SUPPORTING_WM_CHECK | grep -E 'window id # 0x[0-9a-f]+'; do n=$((n+1)); test \"$n\" -le 60; sleep 1; done", timeout=90)
     for attempt in range(3):
         if guest.run('pgrep -u tester -x xfce4-terminal || true').strip():
             break
