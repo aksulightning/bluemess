@@ -1,7 +1,9 @@
 # Building and provenance
 
-The supported delivery path is `.github/workflows/iso.yml`, on GitHub-hosted
-`ubuntu-24.04`. It builds both roots inside `build/Dockerfile`, captures the
+The active delivery path is `.github/workflows/build-iso.yml` (untested), on
+GitHub-hosted `ubuntu-24.04`. The verified workflow is archived unchanged at
+`.github/oldworkflows/iso.yml` and is no longer run by GitHub Actions.
+The active workflow builds both roots inside `build/Dockerfile`, captures the
 container image identity and complete build-tool package versions, then uses
 mmdebstrap minbase (essential packages and APT, without an init metapackage).
 Target packages come only from signed Debian Sid snapshot repositories. Each
@@ -23,7 +25,7 @@ resolution and integration changes, and pass the complete VM/benchmark suite.
 ## Separate ISO-only workflow (unverified)
 
 `.github/workflows/build-iso.yml` assembles an ISO using the same pinned
-builder image and `build/build.sh` as the verified workflow. It deliberately
+builder image and `build/build.sh` as the archived verified workflow. It deliberately
 does **not** call static checks, VM tests, or `build/validate-results.py`.
 It runs independently on pushes to main and feat/fix branches; manual
 dispatch is available after the workflow is on the default branch.
@@ -61,7 +63,7 @@ zstd tar payload. Debian grub-mkrescue creates the EFI El Torito/hybrid image;
 its actual layout report is retained. It contains all target packages,
 initramfs tools and GRUB modules needed to install without a connection.
 
-After full verification, the release job downloads the validated artifact,
+In the archived workflow, after full verification the release job downloads the validated artifact,
 checks its ISO checksum, and publishes those bytes. A push to
 `feat/blue-mess-edition` uses the `<commit-sha>-iso-tested` prerelease tag.
 A push of an existing `v*` tag publishes under that version tag. Published

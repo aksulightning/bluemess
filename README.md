@@ -12,9 +12,13 @@ acceptance target, not a measured claim or minimum physical RAM requirement.
 
 ## Download and verify
 
+The verified workflow is archived at [`.github/oldworkflows/iso.yml`](.github/oldworkflows/iso.yml)
+and no longer runs automatically. The tested downloads described below are
+historical; current builds use the [untested workflow](#iso-without-tests-development-only).
+
 On [Releases](https://github.com/aksulightning/bluemess/releases), look for the
 `<commit-sha>-iso-tested` prerelease for the build you want. Each successful
-verification on a push to `feat/blue-mess-edition` publishes the validated ISO
+verification on a push to `feat/blue-mess-edition` previously published the validated ISO
 and reports under its full commit SHA. Download the ISO and `SHA256SUMS`
 together. Published releases retain their original assets.
 
@@ -48,8 +52,9 @@ When ISO assembly succeeds, the run uploads a
 this artifact is available. An unsuccessful ISO assembly cannot produce a
 usable ISO; its build logs are preserved instead.
 
-Successful pushes to `feat/blue-mess-edition` also publish the same untested
-artifact under the separate `<commit-sha>-iso-untested` prerelease tag.
+Successful pushes or manual runs on `main` replace the
+[`untested-refreshing` prerelease](https://github.com/aksulightning/bluemess/releases/tag/untested-refreshing)
+with the same untested artifact.
 
 **UNTESTED means no boot, installation, desktop or memory acceptance has
 been established.** Use this download only for development testing. Verify
@@ -113,11 +118,11 @@ use `sudo`. BusyBox ash is the interactive shell; Debian Bash and dash remain.
 
 ## Build and verify
 
-GitHub-hosted `ubuntu-24.04` runners build inside a controlled Debian container
-and run QEMU/OVMF with TCG, without requiring KVM or a self-hosted runner.
-Pushes, pull requests, manual dispatch and `v*` tag pushes are supported. Manual
-dispatch becomes available once this workflow has been merged to the default
-branch. Initial development branch pushes run without waiting for dispatch.
+The active untested workflow builds inside a controlled Debian container on
+GitHub-hosted `ubuntu-24.04` runners. The verified workflow is archived in
+`.github/oldworkflows/iso.yml`; its pull-request and tag-triggered validation
+and release jobs are disabled. Local static and QEMU/OVMF verification commands
+remain available in the building guide.
 
 See [building](docs/building.md), [architecture](docs/architecture.md),
 [benchmark](docs/benchmark.md), and [troubleshooting](docs/troubleshooting.md).

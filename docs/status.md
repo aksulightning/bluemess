@@ -1,5 +1,15 @@
 # Implementation record
 
+## 2026-11-09: archive the verified ISO workflow
+
+- Moved `.github/workflows/iso.yml` unchanged to
+  `.github/oldworkflows/iso.yml`, outside GitHub Actions workflow discovery.
+- The untested ISO workflow and rolling release remain active. Static tests,
+  VM verification and the memory gate remain available through the documented
+  local commands, but no longer run automatically through the archived workflow.
+- Verified that the archived file retains the original Git blob and that
+  `build-iso.yml` is unchanged.
+
 ## 2026-11-09: rolling untested release
 
 - Successful pushes or manual builds on main now replace the
