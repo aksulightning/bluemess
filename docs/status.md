@@ -1,12 +1,14 @@
 # Implementation record
 
-## 2026-11-09: Applications menu on the default panel
+## 2026-11-09: text-only APP MENU and panel ordering
 
-- Added XFCE's built-in Applications Menu as the first item on the bottom
-  panel, with a visible Applications label and menu icons. The terminal
-  launcher and all existing panel items retain their IDs and order.
-- Uses the default installed-application categories and existing xfce4-panel
-  dependencies. No additional package or session manager is required.
+- Added Whisker Menu as the first item on the bottom panel, with the exact
+  title APP MENU and its button icon disabled. It opens All Applications.
+  Window Buttons is last; other existing items retain their relative order
+  and configuration.
+- Added xfce4-whiskermenu-plugin to the target manifest. Its native title-only
+  button setting avoids the built-in Applications Menu's always-visible icon.
+  The pinned snapshot and session manager configuration are unchanged.
 - Existing user layouts remain intact; the README documents adding the menu
   interactively. New users and users without panel settings get the default.
 - XML parsing, plugin-ID consistency, existing-item preservation and packaged

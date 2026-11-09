@@ -10,19 +10,19 @@
       <property name="length" type="uint" value="100"/>
       <property name="plugin-ids" type="array">
         <value type="int" value="7"/>
-        <value type="int" value="1"/><value type="int" value="2"/>
+        <value type="int" value="1"/>
         <value type="int" value="3"/><value type="int" value="4"/>
         <value type="int" value="5"/><value type="int" value="6"/>
+        <value type="int" value="2"/>
       </property>
     </property>
   </property>
   <property name="plugins" type="empty">
-    <property name="plugin-7" type="string" value="applicationsmenu">
-      <property name="button-title" type="string" value="Applications"/>
-      <property name="button-icon" type="string" value="org.xfce.panel.applicationsmenu"/>
+    <property name="plugin-7" type="string" value="whiskermenu">
+      <property name="button-title" type="string" value="APP MENU"/>
       <property name="show-button-title" type="bool" value="true"/>
-      <property name="show-menu-icons" type="bool" value="true"/>
-      <property name="custom-menu" type="bool" value="false"/>
+      <property name="show-button-icon" type="bool" value="false"/>
+      <property name="default-category" type="int" value="2"/>
     </property>
     <property name="plugin-1" type="string" value="launcher">
       <property name="items" type="array"><value type="string" value="terminal.desktop"/></property>
