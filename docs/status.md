@@ -1,5 +1,19 @@
 # Implementation record
 
+## 2026-11-09: keep tuigreet output updating while idle
+
+- Enabled tuigreet's built-in clock with an explicit seconds format in the
+  packaged greetd configuration. The existing render timer now has changing
+  visible content every second, without synthetic login input or a new daemon.
+- Upstream tuigreet 0.9.1 already schedules rendering twice per second;
+  this change enables changing output, not an additional refresh timer or
+  forced full-screen repaint. Hardware effectiveness remains unverified.
+- Added instructions for updating existing installations whose local conffile
+  is preserved on package upgrades. No private diagnostic logs were included.
+- TOML parsing, command argument checks and package-content verification passed.
+  Physical-console testing is still required before claiming the display
+  problem is resolved.
+
 ## 2026-11-09: GPU installation preparation helper
 
 - Added `bluemess-prepare-gpu-install` to the bme-config package. It asks for

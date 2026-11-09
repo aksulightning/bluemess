@@ -40,6 +40,22 @@ authentication. When upgrading an earlier installation, install `greetd`
 and `tuigreet` before configuring the updated `bme-config` package.
 The package switches the default runlevel to greetd for the next boot.
 
+The default tuigreet command includes a seconds clock so its normal render
+timer produces changing terminal output without a keypress. This is a display
+workaround, not a forced full-screen repaint or a hardware validation result.
+For an existing installation, edit `/etc/greetd/blue-mess.toml` and set the
+`command` under `[default_session]` to:
+
+```toml
+command = "/usr/bin/tuigreet --time --time-format '%H:%M:%S' --cmd '/usr/bin/ash -il'"
+```
+
+While tty1 is at the greeter, apply it from tty2 or SSH with
+`sudo rc-service greetd restart`. The configuration is a Debian conffile;
+package upgrades may preserve local edits rather than adopting this command.
+Tuigreet remains the greeter; no synthetic keys or extra background service
+are used. The clock does not guarantee recovery from every blank-screen cause.
+
 The checker verifies a local, active tty1 session on `seat0` and an
 `XDG_RUNTIME_DIR` matching elogind's path, owned by the user and set to
 mode `0700`. In the desktop it also queries the session D-Bus. It reports
