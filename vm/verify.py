@@ -430,16 +430,17 @@ done
 n=0; until pgrep -u tester -x xfce4-panel >/dev/null; do n=$((n+1)); test "$n" -le 60; sleep 1; done
 ''', timeout=150)
     for attempt in range(3):
-        if guest.run('pgrep -u tester -x xterm || true').strip():
+        if guest.run('pgrep -u tester -x xfce4-terminal || true').strip():
             break
         guest.qmp.chord('ctrl', 'alt', 't')
         # A shortcut sent during final startup may precede the keyboard grab.
         # Wait before retrying, and never send another once the process exists.
-        if guest.run('''n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || break; sleep 1; done; pgrep -u tester -x xterm || true''', timeout=30).strip():
+        if guest.run('''n=0; until pgrep -u tester -x xfce4-terminal >/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || break; sleep 1; done; pgrep -u tester -x xfce4-terminal || true''', timeout=30).strip():
             break
     facts = guest.run('''set -eu
-n=0; until pgrep -u tester -x xterm >/dev/null; do n=$((n+1)); test "$n" -le 90; sleep 1; done
-test "$(pgrep -u tester -x xterm | wc -l)" -eq 1
+n=0; until pgrep -u tester -x xfce4-terminal >/dev/null; do n=$((n+1)); test "$n" -le 90; sleep 1; done
+test "$(pgrep -u tester -x xfce4-terminal | wc -l)" -eq 1
+test "$(readlink -f /usr/bin/x-terminal-emulator)" = /usr/bin/xfce4-terminal.wrapper
 # The delivered panel and power manager must be present during every benchmark.
 n=0
 until pgrep -u tester -x xfce4-panel >/dev/null && pgrep -u tester -f '^xfce4-power-manager --no-daemon$' >/dev/null; do
@@ -456,7 +457,7 @@ runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q |
 
 xpid=$(pgrep -u tester -x Xorg); test -n "$xpid"
 obpid=$(pgrep -u tester -x openbox); test -n "$obpid"
-tpid=$(pgrep -u tester -x xterm); test -n "$tpid"
+tpid=$(pgrep -u tester -x xfce4-terminal); test -n "$tpid"
 child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' '); test -n "$child"
 case "$(readlink /proc/"$child"/exe)" in */busybox) ;; *) exit 1;; esac
 tr '\\000' ' ' < /proc/"$child"/cmdline | grep -Eq '(^|/|-| )ash( |$)'
@@ -575,13 +576,14 @@ def window_interactions(guest, output):
     phase('Verify real titlebar mouse drag and keyboard window resizing')
     xenv = 'runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority '
     window = guest.run(xenv + """/usr/bin/ash -c '
+tpid=$(pgrep -u tester -x xfce4-terminal)
 for window in $(xprop -root _NET_CLIENT_LIST | sed "s/.*# //; s/,//g"); do
-    if xprop -id "$window" WM_CLASS | grep -q XTerm; then printf "%s" "$window"; exit 0; fi
+    if xprop -id "$window" _NET_WM_PID | grep -Eq "= $tpid$"; then printf "%s" "$window"; exit 0; fi
 done
 exit 1
 '""")
     if not re.fullmatch(r'0x[0-9a-fA-F]+', window):
-        raise Failure('Could not identify the test xterm window')
+        raise Failure('Could not identify the test xfce4-terminal window')
 
     def geometry():
         info = guest.run(xenv + f'xwininfo -id {window}')
@@ -592,7 +594,7 @@ exit 1
     extents = guest.run(xenv + f'xprop -id {window} _NET_FRAME_EXTENTS')
     top = int(extents.split('=')[1].split(',')[2])
     if top <= 0:
-        raise Failure('Test xterm has no titlebar to drag')
+        raise Failure('Test xfce4-terminal has no titlebar to drag')
     # Use one XTEST input device for positioning, pressing and motion. Mixing
     # XWarpPointer with a separate emulated PS/2 device can move the cursor at
     # the first button event. These are real pointer events consumed by Openbox,
@@ -631,7 +633,7 @@ finally:
     facts = {'window': window, 'before': before, 'after_titlebar_drag': after_move}
     record(output, 'window-interactions.json', json.dumps(facts, indent=2))
     if abs(after_move[0] - before[0]) < 20 or abs(after_move[1] - before[1]) < 10:
-        raise Failure(f'Titlebar drag did not move xterm: {before} -> {after_move}')
+        raise Failure(f'Titlebar drag did not move xfce4-terminal: {before} -> {after_move}')
     guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': 'alt'}, {'type': 'qcode', 'data': 'f8'}], 'hold-time': 200})
     time.sleep(.5)
     # Openbox uses the first arrow to select the resize edge; only a
@@ -645,7 +647,7 @@ finally:
     facts['after_keyboard_resize'] = after_resize
     record(output, 'window-interactions.json', json.dumps(facts, indent=2))
     if after_resize[2] <= after_move[2]:
-        raise Failure(f'Keyboard resize did not widen xterm: {after_move} -> {after_resize}')
+        raise Failure(f'Keyboard resize did not widen xfce4-terminal: {after_move} -> {after_resize}')
 
 
 def memory(guest, output, boot):
@@ -776,7 +778,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
-for p in htop nano fastfetch xterm less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+for p in htop nano fastfetch xterm xfce4-terminal less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
 apt-config dump | grep '^APT::Install-Recommends "false";'
 apt-config dump | grep '^APT::Install-Suggests "false";'
 dpkg --audit
@@ -799,9 +801,9 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         desktop(guest, password, output, 'verification')
         result['audio'] = [audio_playback(guest, output, 'verification', recover=True)]
         result['checks'].append('Automatic PipeWire audio, process recovery, restart and non-silent emulated HDA playback')
-        result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xterm/ash')
+        result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xfce4-terminal/ash')
         window_interactions(guest, output)
-        result['checks'].append('Actual XTEST titlebar drag moves the xterm window and Alt+F8 keyboard resizing changes its width')
+        result['checks'].append('Actual XTEST titlebar drag moves the xfce4-terminal window and Alt+F8 keyboard resizing changes its width')
         phase('Verify desktop logout cleans up its companion processes and returns to tty1')
         record(output, 'desktop-logout.log', guest.run('''set -eu
 runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit
@@ -884,7 +886,7 @@ runuser -u tester -- bluemess-desktop auto-start true
         (output / 'memory.json').write_text(json.dumps({'configuration': CONFIG, 'readings': result.get('memory_readings', []), 'summary': result.get('memory')}, indent=2) + '\n')
         report = ['# Blue Mess Edition VM verification', '', f"Result: **{result['status'].upper()}**", '',
                   'Reference: amd64, 1 GiB RAM, 2 qemu64 vCPUs, pc-q35-8.2, TCG, std VGA, 1024×768.',
-                  'Disk-only Openbox desktop with XFCE panel/power manager and one idle xterm/ash; normal delivered services and working networking.', '',
+                  'Disk-only Openbox desktop with XFCE panel/power manager and one idle xfce4-terminal/ash; normal delivered services and working networking.', '',
                   '## Completed assertions', '']
         report += [f'- {check}' for check in result['checks']]
         report += ['', '## Desktop memory', '']

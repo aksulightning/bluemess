@@ -1,5 +1,20 @@
 # Implementation record
 
+## 2026-11-09: XFCE Terminal as the default
+
+- Added xfce4-terminal alongside the retained xterm fallback. New images select
+  its Debian x-terminal-emulator wrapper; new user defaults select it in XFCE,
+  the panel launcher, Openbox shortcuts and terminal application menu entries.
+  Shell launchers continue to run BusyBox ash as a login shell.
+- Existing user configuration is preserved, with adoption steps in the README.
+  Missing XFCE helper preferences are seeded at desktop startup.
+- Updated VM terminal process/window discovery and benchmark documentation to
+  exercise the delivered default terminal without changing the memory gate.
+- All 53 existing tests passed under dash. Shell/Python syntax, skeleton XML,
+  package assembly and packaged terminal-default checks passed. Graphical
+  operation and ISO/VM validation have not been run; BusyBox and ShellCheck
+  are unavailable locally.
+
 ## 2026-11-09: text-only APP MENU and panel ordering
 
 - Added Whisker Menu as the first item on the bottom panel, with the exact

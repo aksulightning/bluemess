@@ -1,7 +1,7 @@
 # Blue Mess Edition
 
 A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
-standalone Openbox, an XFCE panel and power manager, and xterm. Greetd/tuigreet
+standalone Openbox, an XFCE panel and power manager, and XFCE Terminal. Greetd/tuigreet
 provides console login on tty1, then `bluemess-desktop start` opens the desktop.
 Desktop auto-start is an explicit per-user setting; normal password login remains.
 
@@ -109,6 +109,15 @@ user in an Openbox terminal. In the menu's Properties, select a title-only
 panel button and set its title to `APP MENU`. In Panel Preferences → Items,
 move Whisker Menu first and Window Buttons last; remove the old Applications
 Menu if present. New users receive this layout by default.
+
+XFCE Terminal is the default terminal, including the panel launcher,
+Ctrl+Alt+T, Super+Enter and Openbox menu commands. Terminal launchers still
+start BusyBox ash. New images select XFCE Terminal for `x-terminal-emulator`
+and seed XFCE's terminal preference; xterm remains available as a fallback.
+Existing users can install `xfce4-terminal` and select it with
+`sudo update-alternatives --config x-terminal-emulator`. Existing panel and
+Openbox settings are preserved: change their terminal commands to
+`xfce4-terminal --execute /usr/bin/ash -l` to adopt the new launcher.
 
 PipeWire, WirePlumber and PulseAudio/ALSA compatibility are included and start
 automatically with the desktop. Closing a terminal leaves audio running;

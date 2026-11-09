@@ -79,6 +79,7 @@ debianutils
 
 # Desktop companions and power authorization; no XFCE session manager.
 xfce4-panel
+xfce4-terminal
 xfce4-whiskermenu-plugin
 xfce4-power-manager
 xfce4-power-manager-plugins

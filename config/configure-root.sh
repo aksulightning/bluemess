@@ -49,6 +49,8 @@ if [ "$role" = installer ]; then
     ln -s /etc/init.d/bme-console "$root/etc/runlevels/default/bme-console"
 fi
 if [ "$role" = target ]; then
+    # Select the packaged Debian wrapper only while constructing a new image.
+    chroot "$root" update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper
     test -x "$root/etc/init.d/greetd"
     ln -s /etc/init.d/greetd "$root/etc/runlevels/default/greetd"
     sed -i 's/^CriticalPowerAction=.*/CriticalPowerAction=PowerOff/' "$root/etc/UPower/UPower.conf"

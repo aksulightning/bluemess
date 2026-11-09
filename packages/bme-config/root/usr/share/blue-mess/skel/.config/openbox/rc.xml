@@ -4,8 +4,8 @@
   <theme><name>Clearlooks</name><titleLayout>NLIMC</titleLayout></theme>
   <desktops><number>2</number><firstdesk>1</firstdesk></desktops>
   <keyboard>
-    <keybind key="C-A-t"><action name="Execute"><command>xterm -ls -e /usr/bin/ash</command></action></keybind>
-    <keybind key="W-Return"><action name="Execute"><command>xterm -ls -e /usr/bin/ash</command></action></keybind>
+    <keybind key="C-A-t"><action name="Execute"><command>xfce4-terminal --execute /usr/bin/ash -l</command></action></keybind>
+    <keybind key="W-Return"><action name="Execute"><command>xfce4-terminal --execute /usr/bin/ash -l</command></action></keybind>
     <keybind key="A-Tab"><action name="NextWindow"/></keybind>
     <keybind key="A-S-Tab"><action name="PreviousWindow"/></keybind>
     <keybind key="A-F4"><action name="Close"/></keybind>
