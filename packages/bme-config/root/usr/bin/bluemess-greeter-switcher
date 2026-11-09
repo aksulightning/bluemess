@@ -38,10 +38,10 @@ service=$(greeter_service "$choice")
 [ -x "/etc/init.d/$service" ] || { echo "Missing native service: $service; upgrade bme-config first." >&2; exit 1; }
 case $choice in
     tuigreet)
-        [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ] &&
-            [ -r /etc/greetd/blue-mess.toml ] && getent passwd _greetd >/dev/null || {
+        if ! { [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ] &&
+            [ -r /etc/greetd/blue-mess.toml ] && getent passwd _greetd >/dev/null; }; then
             echo 'Install greetd and tuigreet before selecting tuigreet.' >&2; exit 1;
-        }
+        fi
         manager=/usr/sbin/greetd ;;
     agetty)
         [ -x /sbin/agetty ] || { echo 'agetty is missing.' >&2; exit 1; }
@@ -80,9 +80,9 @@ trap 'exit 130' INT
 trap 'exit 143' HUP TERM
 mkdir "$lock/runlevels"
 for target in /etc/blue-mess/greeter /etc/X11/default-display-manager; do
-    [ ! -L "$target" ] && { [ ! -e "$target" ] || [ -f "$target" ]; } || {
+    if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
         echo "Refusing non-regular configuration: $target" >&2; exit 1;
-    }
+    fi
     [ ! -e "$target" ] || cp -a "$target" "$lock/${target##*/}"
 done
 for level in /etc/runlevels/*; do
@@ -91,9 +91,9 @@ for level in /etc/runlevels/*; do
     for name in greetd sddm bme-getty.tty1; do
         link=$level/$name
         [ -e "$link" ] || [ -L "$link" ] || continue
-        [ -L "$link" ] && [ "$(readlink "$link")" = "/etc/init.d/$name" ] || {
+        if [ ! -L "$link" ] || [ "$(readlink "$link")" != "/etc/init.d/$name" ]; then
             echo "Refusing unmanaged runlevel entry: $link" >&2; exit 1;
-        }
+        fi
         cp -a "$link" "$lock/runlevels/${level##*/}/$name"
     done
 done

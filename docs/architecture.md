@@ -22,8 +22,9 @@ Sources:
 | default | dbus, elogind | System bus, ordinary-user PAM login, seats and device access |
 | default | bme-network, chrony | One configured DHCP connection, DNS and time synchronization |
 | default | bme-syslog, bme-klog | Rotating system log and kernel messages |
-| default | greetd | Installed-system tty1 login through tuigreet and Debian PAM |
-| default | bme-getty.tty1, bme-getty.tty2, bme-getty.tty3, bme-getty.ttyS0 | agetty on tty2, tty3 and serial, plus tty1 on the live installer |
+| default, when selected | greetd | Default installed-system tty1 login through tuigreet and Debian PAM |
+| default, when selected | sddm | Embedded graphical greeter and complete Blue Mess X11 session |
+| default | bme-getty.tty1, bme-getty.tty2, bme-getty.tty3, bme-getty.ttyS0 | agetty on tty2, tty3 and serial; tty1 on live media or when selected on an installed system |
 | default, media only | bme-media | Locate the separate clean installed-system payload |
 | shutdown | bme-mount-ro | Final read-only root remount after OpenRC closes its log |
 
@@ -31,7 +32,18 @@ initramfs-tools owns root filesystem checks before mounting root. `bme-localmoun
 
 The configuration package diverts Debian's dbus, elogind, chrony, udev and installed-system greetd service entry points to preserved vendor paths and installs native `openrc-run` entry points. Package maintainer `invoke-rc.d` and service actions use these entry points. Removal restores diverted scripts. Debian LSB metadata lives in `/etc/insserv/overrides/`, separate from native service code. Debian OpenRC classifies inline `INIT INFO` headers as LSB scripts and bypasses native service command definitions, so these headers must never be added to the native wrappers. Image construction asserts native classification using Debian's actual `lsb2rcconf` tool and verifies unmodified `dpkg`/`init-system-helpers` package files. Build-time policy preventing daemon starts is limited to image construction. The configuration step removes inherited runlevel links and activates exactly one owner per daemon.
 
-The explicitly installed `systemd-standalone-sysusers` and `systemd-standalone-tmpfiles` helpers run during `bme-boot` to apply the user definitions and runtime-directory rules present on the system. See [the X11 socket ownership fix](troubleshooting.md#x11-socket-ownership) if the X11 tmpfiles rule is missing. These standalone commands run under OpenRC.
+The explicitly installed `systemd-standalone-sysusers` and `systemd-standalone-tmpfiles` helpers run during `bme-boot` to apply the user definitions and runtime-directory rules present on the system, including SDDM's account and private runtime paths. See [the X11 socket ownership fix](troubleshooting.md#x11-socket-ownership) if the X11 tmpfiles rule is missing. These standalone commands run under OpenRC.
+
+SDDM's vendor init entry point is also diverted when installed. The switcher
+persists one choice in `/etc/blue-mess/greeter`, reconciles its runlevel links
+and the Debian display-manager selector, and changes no running service.
+Native start guards enforce mutual exclusion. Upgrades reapply the saved
+choice; the live installer remains on agetty. Recovery consoles are independent.
+SDDM uses its embedded QtQuick theme, Debian PAM/common-session with elogind,
+and Debian's Xsession wrapper to launch the same packaged desktop directly.
+It owns the X server and private Xauthority file; no nested `startx` is used.
+Modern SDDM selects an available VT, which the session checker validates against
+elogind rather than assuming tty1. The console choices retain their tty1 guard.
 
 The kernel udev daemon may have `systemd` in its filename. That is permitted: it is a device helper rather than a system or user service manager. Runtime verification must assert `/proc/1/exe`, service state and actual processes.
 
