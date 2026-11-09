@@ -1,5 +1,46 @@
 # Implementation record
 
+## 2026-11-09: terminal paste and F10 defaults
+
+- Disabled XFCE Terminal's unsafe-paste dialog and menu shortcut key through
+  its Xfconf preferences, so F10 is available to terminal applications.
+- Added defaults for new users and users without terminal settings. Existing
+  Xfconf files are preserved; legacy terminalrc files are left for Terminal's
+  own migration. README commands apply only these two preferences explicitly.
+- XML preferences, shell syntax, package contents, new-setting seeding and
+  existing/legacy configuration preservation checks passed. Interactive paste
+  and htop keyboard handling have not been tested locally.
+
+## 2026-11-09: XFCE Terminal as the default
+
+- Added xfce4-terminal alongside the retained xterm fallback. New images select
+  its Debian x-terminal-emulator wrapper; new user defaults select it in XFCE,
+  the panel launcher, Openbox shortcuts and terminal application menu entries.
+  Shell launchers continue to run BusyBox ash as a login shell.
+- Existing user configuration is preserved, with adoption steps in the README.
+  Missing XFCE helper preferences are seeded at desktop startup.
+- Updated VM terminal process/window discovery and benchmark documentation to
+  exercise the delivered default terminal without changing the memory gate.
+- All 53 existing tests passed under dash. Shell/Python syntax, skeleton XML,
+  package assembly and packaged terminal-default checks passed. Graphical
+  operation and ISO/VM validation have not been run; BusyBox and ShellCheck
+  are unavailable locally.
+
+## 2026-11-09: text-only APP MENU and panel ordering
+
+- Added Whisker Menu as the first item on the bottom panel, with the exact
+  title APP MENU and its button icon disabled. It opens All Applications.
+  Window Buttons is last; other existing items retain their relative order
+  and configuration.
+- Added xfce4-whiskermenu-plugin to the target manifest. Its native title-only
+  button setting avoids the built-in Applications Menu's always-visible icon.
+  The pinned snapshot and session manager configuration are unchanged.
+- Existing user layouts remain intact; the README documents adding the menu
+  interactively. New users and users without panel settings get the default.
+- XML parsing, plugin-ID consistency, existing-item preservation and packaged
+  configuration checks passed. Interactive menu opening and application launch
+  have not been exercised locally.
+
 ## 2026-11-09: keep tuigreet output updating while idle
 
 - Enabled tuigreet's built-in clock with an explicit seconds format in the

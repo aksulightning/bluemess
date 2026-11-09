@@ -1,7 +1,7 @@
 # Blue Mess Edition
 
 A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
-standalone Openbox, an XFCE panel and power manager, and xterm. Greetd/tuigreet
+standalone Openbox, an XFCE panel and power manager, and XFCE Terminal. Greetd/tuigreet
 provides console login on tty1, then `bluemess-desktop start` opens the desktop.
 Desktop auto-start is an explicit per-user setting; normal password login remains.
 
@@ -95,11 +95,38 @@ return to console-only logins, and `bluemess-desktop status` to inspect the sett
 Auto-start is off by default and never starts X on tty2/tty3, the serial console, SSH,
 or as root. Leaving Openbox returns to the authenticated text console.
 
-The bottom panel contains a terminal launcher, window list, workspace switcher,
-notification area, power indicator and clock. There is no screensaver, automatic
+The bottom panel contains APP MENU, the terminal launcher, workspace switcher,
+notification area, power indicator, clock and Window Buttons, in that order.
+APP MENU uses Whisker Menu with a text-only button and opens All Applications.
+There is no screensaver, automatic
 screen locking, idle logout, idle suspend, dimming or display blanking by default.
 Closing a laptop lid requests suspend through elogind; critical battery power
 requests a controlled shutdown. Hardware support must be checked on real laptops.
+
+Existing users keep their panel layout. Install `xfce4-whiskermenu-plugin`
+with APT if needed, then run `xfce4-panel --add=whiskermenu` as your ordinary
+user in an Openbox terminal. In the menu's Properties, select a title-only
+panel button and set its title to `APP MENU`. In Panel Preferences → Items,
+move Whisker Menu first and Window Buttons last; remove the old Applications
+Menu if present. New users receive this layout by default.
+
+XFCE Terminal is the default terminal, including the panel launcher,
+Ctrl+Alt+T, Super+Enter and Openbox menu commands. Terminal launchers still
+start BusyBox ash. New images select XFCE Terminal for `x-terminal-emulator`
+and seed XFCE's terminal preference; xterm remains available as a fallback.
+Existing users can install `xfce4-terminal` and select it with
+`sudo update-alternatives --config x-terminal-emulator`. Existing panel and
+Openbox settings are preserved: change their terminal commands to
+`xfce4-terminal --execute /usr/bin/ash -l` to adopt the new launcher.
+
+Terminal defaults disable the unsafe-paste confirmation dialog and the F10
+menu shortcut, allowing F10 to reach programs such as htop. Existing users
+can apply these settings from their desktop terminal without sudo:
+
+```sh
+xfconf-query -c xfce4-terminal -p /misc-show-unsafe-paste-dialog --create -t bool -s false
+xfconf-query -c xfce4-terminal -p /shortcuts-no-menukey --create -t bool -s true
+```
 
 PipeWire, WirePlumber and PulseAudio/ALSA compatibility are included and start
 automatically with the desktop. Closing a terminal leaves audio running;

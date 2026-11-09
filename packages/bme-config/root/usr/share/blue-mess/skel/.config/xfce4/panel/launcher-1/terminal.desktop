@@ -2,7 +2,7 @@
 Type=Application
 Name=Terminal
 Comment=Open a BusyBox ash terminal
-Exec=xterm -ls -e /usr/bin/ash
+Exec=xfce4-terminal --execute /usr/bin/ash -l
 Icon=utilities-terminal-symbolic
 Terminal=false
 StartupNotify=true
