@@ -16,7 +16,12 @@ config_home=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CONFIG_HOME="$config_home"
 # Seed only missing XFCE files, including for users of an earlier alpha.
 source=/usr/share/blue-mess/skel/.config/xfce4
-for relative in helpers.rc xfconf/xfce-perchannel-xml/xfce4-panel.xml xfconf/xfce-perchannel-xml/xfce4-power-manager.xml panel/launcher-1/terminal.desktop; do
+for relative in helpers.rc xfconf/xfce-perchannel-xml/xfce4-panel.xml xfconf/xfce-perchannel-xml/xfce4-power-manager.xml xfconf/xfce-perchannel-xml/xfce4-terminal.xml panel/launcher-1/terminal.desktop; do
+    # Let Terminal migrate an existing legacy configuration into Xfconf.
+    if [ "$relative" = xfconf/xfce-perchannel-xml/xfce4-terminal.xml ] &&
+        { [ -e "$config_home/xfce4/terminal/terminalrc" ] || [ -e "$config_home/Terminal/terminalrc" ]; }; then
+        continue
+    fi
     target=$config_home/xfce4/$relative
     if [ ! -e "$target" ]; then
         mkdir -p "${target%/*}"

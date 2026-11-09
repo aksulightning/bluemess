@@ -1,5 +1,16 @@
 # Implementation record
 
+## 2026-11-09: terminal paste and F10 defaults
+
+- Disabled XFCE Terminal's unsafe-paste dialog and menu shortcut key through
+  its Xfconf preferences, so F10 is available to terminal applications.
+- Added defaults for new users and users without terminal settings. Existing
+  Xfconf files are preserved; legacy terminalrc files are left for Terminal's
+  own migration. README commands apply only these two preferences explicitly.
+- XML preferences, shell syntax, package contents, new-setting seeding and
+  existing/legacy configuration preservation checks passed. Interactive paste
+  and htop keyboard handling have not been tested locally.
+
 ## 2026-11-09: XFCE Terminal as the default
 
 - Added xfce4-terminal alongside the retained xterm fallback. New images select

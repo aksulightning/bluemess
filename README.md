@@ -119,6 +119,15 @@ Existing users can install `xfce4-terminal` and select it with
 Openbox settings are preserved: change their terminal commands to
 `xfce4-terminal --execute /usr/bin/ash -l` to adopt the new launcher.
 
+Terminal defaults disable the unsafe-paste confirmation dialog and the F10
+menu shortcut, allowing F10 to reach programs such as htop. Existing users
+can apply these settings from their desktop terminal without sudo:
+
+```sh
+xfconf-query -c xfce4-terminal -p /misc-show-unsafe-paste-dialog --create -t bool -s false
+xfconf-query -c xfce4-terminal -p /shortcuts-no-menukey --create -t bool -s true
+```
+
 PipeWire, WirePlumber and PulseAudio/ALSA compatibility are included and start
 automatically with the desktop. Closing a terminal leaves audio running;
 leaving the desktop stops its audio processes. Use `bluemess-audio status`,
