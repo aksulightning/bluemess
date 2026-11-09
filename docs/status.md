@@ -1,5 +1,29 @@
 # Implementation record
 
+## 2026-11-09: bounded greeter startup readiness and settling delay
+
+- Native OpenRC greetd startup now waits at most 15 seconds for an accessible
+  tty1 and a successful elogind D-Bus ping. Each ping has a one-second reply
+  timeout; BusyBox timeout bounds the complete wait. Changed failure reasons
+  are logged without repeating the same message on every probe.
+- Added `/etc/conf.d/greetd` as a Debian conffile with a three-second settling
+  delay, configurable from 0 to 30 seconds. Invalid settings fail before
+  startup. Added the explicit dbus-bin dependency and required timeout applet.
+- Existing two-second/five-per-minute OpenRC crash recovery remains intact.
+  The readiness hook runs only on start or explicit restart, not on daemon
+  respawns or login/logout. No periodic health checker or upgrade-time restart
+  is added. The clock workaround and local greetd TOML settings are preserved.
+- All 64 local tests passed under dash, including 11 new readiness/start-hook
+  tests and a real 15-second outer-deadline test using host GNU timeout.
+  Shell/Python syntax, new VM shell snippets, Debian package assembly,
+  packaged helper permissions/content and conffile registration passed.
+- The disposable-QEMU suite now checks explicit greetd restart and daemon
+  crash recovery before login, and verifies that the daemon stays unchanged
+  through desktop checks. Existing login/logout and three-boot checks remain.
+  Docker, QEMU, BusyBox and ShellCheck are unavailable locally; the full static
+  target checks, ISO/VM suite and physical-console validation remain pending.
+  A startup race is still a hypothesis; this is not a verified display fix.
+
 ## 2026-11-09: terminal paste and F10 defaults
 
 - Disabled XFCE Terminal's unsafe-paste dialog and menu shortcut key through

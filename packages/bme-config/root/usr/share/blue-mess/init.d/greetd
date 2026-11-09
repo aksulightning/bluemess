@@ -14,14 +14,34 @@ error_logger="exec /usr/bin/busybox logger -t greetd"
 depend() { need bme-boot elogind bme-syslog; after bme-network; }
 
 start_pre() {
+    # OpenRC loads /etc/conf.d/greetd before this hook. Keep the delay bounded.
+    case ${greetd_start_delay-3} in
+        0|[1-9]|[12][0-9]|30) ;;
+        *) eerror 'greetd_start_delay must be an integer from 0 to 30 seconds.'; return 1 ;;
+    esac
     if [ -L /etc/runlevels/default/bme-getty.tty1 ] ||
         rc-service bme-getty.tty1 status >/dev/null 2>&1; then
         eerror 'Disable and stop bme-getty.tty1 before starting greetd.'
         return 1
     fi
-    [ -c /dev/tty1 ] && [ -x /usr/bin/tuigreet ] &&
+    [ -x /usr/bin/tuigreet ] &&
         [ -r /etc/greetd/blue-mess.toml ] && getent passwd _greetd >/dev/null || {
-        eerror 'greetd requires tty1, tuigreet, its Blue Mess configuration and the Debian greeter account.'
+        eerror 'greetd requires tuigreet, its Blue Mess configuration and the Debian greeter account.'
         return 1
     }
+    ebegin 'Waiting up to 15 seconds for tty1 and elogind'
+    # A hard deadline includes probing and sleeps; D-Bus also has its own timeout.
+    # This runs only on service start/restart, never against a logged-in session.
+    busybox timeout -s KILL 15 /usr/lib/blue-mess/greetd-ready --wait
+    ready_status=$?
+    eend "$ready_status"
+    if [ "$ready_status" -ne 0 ]; then
+        eerror 'greetd readiness failed or timed out; see the preceding readiness reason in /var/log/rc.log. Repair the cause, then run rc-service greetd start.'
+        return 1
+    fi
+    einfo "tty1 and elogind are ready; greetd startup delay: ${greetd_start_delay-3}s."
+    if [ "${greetd_start_delay-3}" -ne 0 ]; then
+        sleep "${greetd_start_delay-3}" || return 1
+    fi
+    einfo 'Starting greetd with OpenRC crash recovery (2s delay, limit 5/60s).'
 }

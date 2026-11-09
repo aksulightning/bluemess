@@ -40,6 +40,57 @@ authentication. When upgrading an earlier installation, install `greetd`
 and `tuigreet` before configuring the updated `bme-config` package.
 The package switches the default runlevel to greetd for the next boot.
 
+### Greeter startup readiness and delay
+
+The native OpenRC service waits up to 15 seconds for `/dev/tty1` to be an
+accessible character device and for elogind to answer a system D-Bus ping.
+Each D-Bus call has a one-second reply timeout; an outer BusyBox timeout
+bounds the whole readiness phase. Missing programs, configuration or the
+`_greetd` account fail immediately. A competing tty1 getty also blocks startup.
+The existing udev service already settles coldplug before elogind starts;
+this additional check tests that elogind actually responds.
+
+After readiness, `/etc/conf.d/greetd` controls an additional settling delay:
+
+```sh
+greetd_start_delay=3
+```
+
+Use an integer from `0` to `30` seconds. `0` disables only the extra delay;
+the readiness check remains enabled. Empty or malformed values fail startup.
+The three-second default is a configurable timing workaround, not proof that
+a GPU/console rendering problem is fixed. There is no requirement for a
+particular DRM card or framebuffer device.
+
+The hook runs on service start or explicit restart. Normal login/logout and
+OpenRC crash respawns do not repeat it. Existing supervision still waits two
+seconds between daemon respawns and limits them to five within 60 seconds.
+There is no recurring greeter health check that could mistake an authenticated
+shell or desktop for a missing tuigreet process.
+
+On failure, inspect `/var/log/rc.log` for the readiness reason and
+`/var/log/messages` for daemon output. A readiness timeout leaves greetd
+unstarted; after correcting tty1, D-Bus or elogind, run from tty2 or tty3:
+
+```sh
+sudo rc-service greetd start
+```
+
+To apply a delay change to an already running service, log out of the tty1
+desktop **and its login shell** first, then use tty2 or tty3:
+
+```sh
+sudo rc-service greetd restart
+```
+
+Do not restart greetd while a tty1 user session is running. Package upgrades
+install the new hook for the next service start without restarting greetd.
+`/etc/conf.d/greetd` is a Debian conffile, so local delay settings are preserved
+through the normal package configuration-file handling. This change does not
+require replacing the existing `/etc/greetd/blue-mess.toml`.
+
+### Greeter clock workaround
+
 The default tuigreet command includes a seconds clock so its normal render
 timer produces changing terminal output without a keypress. This is a display
 workaround, not a forced full-screen repaint or a hardware validation result.

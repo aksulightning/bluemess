@@ -356,6 +356,38 @@ done
 ''', timeout=90)
 
 
+def greeter_recovery(guest, output):
+    """Exercise startup and one crash only at the unused guest login prompt."""
+    phase('Verify greetd startup readiness and supervised crash recovery before login')
+    wait_for_greeter(guest, 'Username')
+    record(output, 'greeter-restart.log', guest.run('''set -eu
+! ps -t tty1 -o user= | grep -qx '[[:space:]]*tester'
+rc-service greetd restart
+rc-service greetd status
+''', timeout=45))
+    wait_for_greeter(guest, 'Username')
+    record(output, 'greeter-crash-recovery.log', guest.run('''set -eu
+supervisor=$(cat /run/bme-greetd.pid)
+daemon=$(pgrep -P "$supervisor" -x greetd)
+test "$(printf '%s\\n' "$daemon" | wc -l)" -eq 1
+kill -KILL "$daemon"
+n=0
+while :; do
+    replacement=$(pgrep -P "$supervisor" -x greetd || :)
+    if [ -n "$replacement" ] && [ "$replacement" != "$daemon" ]; then break; fi
+    n=$((n+1)); test "$n" -le 15; sleep 1
+done
+test "$(cat /run/bme-greetd.pid)" = "$supervisor"
+rc-service greetd status
+printf 'greetd recovered: %s -> %s\\n' "$daemon" "$replacement"
+''', timeout=30))
+    wait_for_greeter(guest, 'Username')
+    daemon = guest.run('pgrep -P "$(cat /run/bme-greetd.pid)" -x greetd').strip()
+    if not daemon.isdigit():
+        raise Failure('Expected exactly one supervised greetd daemon')
+    return daemon
+
+
 def desktop(guest, password, output, suffix, auto_start=False):
     phase(f'{suffix}: assert tty1 is selected before tuigreet login')
     guest.run('test "$(cat /sys/class/tty/tty0/active)" = tty1')
@@ -798,12 +830,16 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         result['checks'].append('Disk-only boot, authenticated ash/sudo, home layout, UUID filesystems, DHCP/DNS, APT policy, package install/remove and upgrade plan')
         console_layout(guest, password, output)
         result['checks'].append('TTY1 selected at boot; tty2/tty3 authenticate; kernel, console and syslog probes reach tty4 without a login there')
+        greeter_pid = greeter_recovery(guest, output)
+        result['checks'].append('greetd starts through its readiness hook and OpenRC restores the greeter after a daemon crash before login')
         desktop(guest, password, output, 'verification')
         result['audio'] = [audio_playback(guest, output, 'verification', recover=True)]
         result['checks'].append('Automatic PipeWire audio, process recovery, restart and non-silent emulated HDA playback')
         result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xfce4-terminal/ash')
         window_interactions(guest, output)
         result['checks'].append('Actual XTEST titlebar drag moves the xfce4-terminal window and Alt+F8 keyboard resizing changes its width')
+        guest.run('test "$(pgrep -P "$(cat /run/bme-greetd.pid)" -x greetd)" = ' + shlex.quote(greeter_pid))
+        result['checks'].append('The same greetd daemon remains running throughout the authenticated desktop checks')
         phase('Verify desktop logout cleans up its companion processes and returns to tty1')
         record(output, 'desktop-logout.log', guest.run('''set -eu
 runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit

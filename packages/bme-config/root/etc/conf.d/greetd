@@ -1,0 +1,4 @@
+# Allow the console to settle after tty1 and elogind are ready.
+# Integer seconds, 0..30; use 0 to disable this additional delay.
+# The readiness deadline remains 15 seconds and crash respawns retain their 2s delay.
+greetd_start_delay=3

@@ -1,0 +1,37 @@
+#!/bin/sh
+# Invoked under a 15-second timeout by the native OpenRC greetd service.
+# Functions may also be sourced for isolated checks without touching host services.
+greetd_tty_ready() {
+    [ -c /dev/tty1 ] && [ -r /dev/tty1 ] && [ -w /dev/tty1 ]
+}
+
+greetd_wait_ready() {
+    command -v dbus-send >/dev/null 2>&1 || {
+        echo 'greetd readiness: dbus-send is missing (install dbus-bin).' >&2
+        return 1
+    }
+    previous_reason=
+    while :; do
+        if ! greetd_tty_ready; then
+            reason='tty1 is not yet an accessible character device'
+        elif ! dbus-send --system --type=method_call --print-reply --reply-timeout=1000 \
+            --dest=org.freedesktop.login1 /org/freedesktop/login1 \
+            org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1; then
+            reason='elogind is not responding on the system D-Bus (1s probe timeout)'
+        else
+            echo 'greetd readiness: tty1 is accessible and elogind replied.'
+            return 0
+        fi
+        if [ "$reason" != "$previous_reason" ]; then
+            echo "greetd readiness: waiting: $reason." >&2
+            previous_reason=$reason
+        fi
+        sleep 1 || return 1
+    done
+}
+
+case ${1-} in
+    --wait) greetd_wait_ready ;;
+    '') ;; # Sourcing the functions does not start a wait.
+    *) echo 'usage: greetd-ready --wait' >&2; exit 2 ;;
+esac
