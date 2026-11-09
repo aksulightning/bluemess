@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Blue Mess
+Comment=Openbox with the Blue Mess panel, power manager and audio
+Exec=/usr/lib/blue-mess/desktop-session
+TryExec=/usr/lib/blue-mess/desktop-session
+Type=Application
+DesktopNames=Openbox

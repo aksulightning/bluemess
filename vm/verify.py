@@ -715,6 +715,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--iso', required=True, type=Path)
     parser.add_argument('--output', type=Path, default=Path('out/verification'))
+    parser.add_argument('--greeters-only', action='store_true',
+                        help='Run the installed greeter matrix; not the release/RAM acceptance suite')
     parser.add_argument('--ovmf-code', default=code)
     parser.add_argument('--ovmf-vars', default=variables)
     args = parser.parse_args()
@@ -807,6 +809,12 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
             raise Failure('Fresh user home has unexpected visible entries: ' + layout)
         guest.root(password)
         root_state(guest, output, 'installed')
+        if args.greeters_only:
+            from greeters import verify_choices
+            result['scope'] = 'greeters-only; not release or memory acceptance'
+            verify_choices(guest, password, output, result)
+            result['status'] = 'passed'
+            return 0
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
@@ -918,12 +926,17 @@ runuser -u tester -- bluemess-desktop auto-start true
         if guest is not None:
             with suppress(Exception):
                 guest.close()
-        (output / 'results.json').write_text(json.dumps(result, indent=2) + '\n')
+        result_file = 'greeter-results.json' if args.greeters_only else 'results.json'
+        (output / result_file).write_text(json.dumps(result, indent=2) + '\n')
         (output / 'memory.json').write_text(json.dumps({'configuration': CONFIG, 'readings': result.get('memory_readings', []), 'summary': result.get('memory')}, indent=2) + '\n')
         report = ['# Blue Mess Edition VM verification', '', f"Result: **{result['status'].upper()}**", '',
                   'Reference: amd64, 1 GiB RAM, 2 qemu64 vCPUs, pc-q35-8.2, TCG, std VGA, 1024×768.',
                   'Disk-only Openbox desktop with XFCE panel/power manager and one idle xfce4-terminal/ash; normal delivered services and working networking.', '',
                   '## Completed assertions', '']
+        if args.greeters_only:
+            report = ['# Blue Mess greeter verification', '', f"Result: **{result['status'].upper()}**", '',
+                      'Focused login-manager matrix on a freshly installed disposable QEMU disk.',
+                      'This is not a validated release or a RAM acceptance result.', '', '## Completed assertions', '']
         report += [f'- {check}' for check in result['checks']]
         report += ['', '## Desktop memory', '']
         for number, reading in enumerate(result.get('memory_readings', []), 1):

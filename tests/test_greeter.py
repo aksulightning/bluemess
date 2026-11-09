@@ -133,6 +133,9 @@ class ServiceStart(GreeterFixture):
         self.config.touch()
         # Redirect filesystem prerequisites to fixtures, leaving hook logic intact.
         source = SERVICE.read_text().replace('/usr/bin/tuigreet', str(self.bin / 'tuigreet'))
+        common = self.base / 'greeter-common'
+        common.write_text('greeter_start_allowed() { return 0; }\n')
+        source = source.replace('/usr/lib/blue-mess/greeter-common', str(common))
         source = source.replace('/etc/greetd/blue-mess.toml', str(self.config))
         source = source.replace('/etc/runlevels/default/bme-getty.tty1', str(self.base / 'getty-link'))
         self.service = self.base / 'greetd'

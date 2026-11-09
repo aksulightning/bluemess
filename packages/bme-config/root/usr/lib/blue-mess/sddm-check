@@ -1,0 +1,21 @@
+#!/bin/sh
+# Offline prerequisites: this check neither starts a server nor authenticates.
+set -eu
+for path in /usr/bin/sddm /usr/bin/sddm-greeter-qt6 /usr/lib/xorg/Xorg \
+    /etc/sddm/Xsession /usr/lib/blue-mess/desktop-session /sbin/openrc-shutdown; do
+    [ -x "$path" ] || { echo "SDDM prerequisite missing: $path" >&2; exit 1; }
+done
+for path in /etc/pam.d/sddm /etc/pam.d/sddm-greeter \
+    /usr/share/blue-mess/xsessions/bluemess.desktop /etc/sddm.conf.d/90-blue-mess.conf \
+    /usr/lib/tmpfiles.d/sddm.conf; do
+    [ -r "$path" ] || { echo "SDDM prerequisite missing: $path" >&2; exit 1; }
+done
+getent passwd sddm >/dev/null || { echo 'The Debian sddm account is missing.' >&2; exit 1; }
+grep -Eq '^[[:space:]]*session[[:space:]]+optional[[:space:]]+pam_elogind[.]so([[:space:]]|$)' /etc/pam.d/common-session || {
+    echo 'SDDM requires pam_elogind in the Debian common-session stack.' >&2; exit 1;
+}
+for package in sddm qml6-module-qtquick qml6-module-qtqml-workerscript qt6-qpa-plugins libgl1-mesa-dri; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null)" = installed ] || {
+        echo "SDDM prerequisite package missing: $package" >&2; exit 1;
+    }
+done

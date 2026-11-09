@@ -1,0 +1,39 @@
+# Shared by the switcher and native OpenRC services. Never evaluate state as code.
+greeter_selected() {
+    if [ -f /etc/blue-mess/greeter ]; then
+        selection=$(cat /etc/blue-mess/greeter) || return 1
+    else
+        selection=tuigreet
+    fi
+    case $selection in tuigreet|agetty|sddm) printf '%s\n' "$selection" ;;
+        *) echo 'Invalid /etc/blue-mess/greeter; expected tuigreet, agetty or sddm.' >&2; return 1 ;;
+    esac
+}
+
+greeter_service() {
+    case $1 in tuigreet) echo greetd ;; agetty) echo bme-getty.tty1 ;; sddm) echo sddm ;; *) return 1 ;; esac
+}
+
+greeter_start_allowed() {
+    # The live installer always keeps its tty1 console login.
+    if [ "$1" = agetty ] && [ -L /etc/runlevels/default/bme-media ]; then return 0; fi
+    selected=$(greeter_selected) || return 1
+    [ "$selected" = "$1" ] || {
+        echo "$1 is not the selected greeter ($selected). Use bluemess-greeter-switcher." >&2
+        return 1
+    }
+    own_service=$(greeter_service "$1") || return 1
+    for other in greetd sddm bme-getty.tty1; do
+        [ "$other" != "$own_service" ] || continue
+        if rc-service "$other" status >/dev/null 2>&1; then
+            echo "Cannot start $own_service while $other is running." >&2
+            return 1
+        fi
+        for link in /etc/runlevels/*/"$other"; do
+            if [ -L "$link" ]; then
+                echo "Conflicting greeter runlevel link: $link. Run bluemess-greeter-switcher again." >&2
+                return 1
+            fi
+        done
+    done
+}

@@ -24,6 +24,10 @@ for script in \
     packages/bme-config/root/usr/bin/bluemess-audio-panel \
     packages/bme-config/root/usr/lib/blue-mess/desktop-session \
     packages/bme-config/root/usr/lib/blue-mess/greetd-ready \
+    packages/bme-config/root/usr/lib/blue-mess/greeter-common \
+    packages/bme-config/root/usr/lib/blue-mess/sddm-check \
+    packages/bme-config/root/usr/bin/bluemess-greeter-switcher \
+    packages/bme-config/root/usr/share/blue-mess/init.d/sddm \
     packages/bme-config/root/usr/share/blue-mess/init.d/greetd \
     packages/bme-config/root/usr/share/blue-mess/skel/.profile \
     packages/bme-config/root/usr/share/blue-mess/skel/.xinitrc; do
@@ -31,6 +35,8 @@ for script in \
 done
 shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-prepare-gpu-install
 shellcheck -s ash packages/bme-config/root/usr/lib/blue-mess/greetd-ready
+shellcheck -s ash -e SC1091 packages/bme-config/root/usr/bin/bluemess-greeter-switcher
+shellcheck -s ash packages/bme-config/root/usr/lib/blue-mess/sddm-check packages/bme-config/root/usr/lib/blue-mess/greeter-common
 python3 - <<'XML'
 from pathlib import Path
 import xml.etree.ElementTree as ET

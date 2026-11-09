@@ -21,6 +21,7 @@ configure)
     if [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ]; then
         services="$services greetd"
     fi
+    if [ -x /usr/bin/sddm ]; then services="$services sddm"; fi
     for name in $services; do
         destination="/usr/share/blue-mess/vendor-init/$name"
         if ! dpkg-divert --listpackage "/etc/init.d/$name" | grep '^bme-config$' >/dev/null; then
@@ -33,6 +34,7 @@ configure)
     done
     # Update next-boot links without interrupting an authenticated console.
     if [ -L /etc/runlevels/sysinit/bme-root ]; then
+        ln -sfn /etc/init.d/bme-getty /etc/init.d/bme-getty.tty1
         for port in tty2 tty3; do
             ln -sfn /etc/init.d/bme-getty "/etc/init.d/bme-getty.$port"
             rc-update add "bme-getty.$port" default
@@ -43,10 +45,7 @@ configure)
         done
         if [ ! -L /etc/runlevels/default/bme-media ] &&
             [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ]; then
-            rc-update add greetd default
-            if [ -L /etc/runlevels/default/bme-getty.tty1 ]; then
-                rc-update del bme-getty.tty1 default
-            fi
+            /usr/bin/bluemess-greeter-switcher --sync
         fi
         # Image construction generates GRUB after installing the bootloader.
         if [ -f /boot/grub/grub.cfg ] && [ ! -L /etc/runlevels/default/bme-media ]; then

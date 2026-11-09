@@ -1,5 +1,23 @@
 # Implementation record
 
+## 2026-11-09: greeter switcher and minimal SDDM integration
+
+- Added `bluemess-greeter-switcher` with the ordered choices tuigreet, agetty
+  and SDDM, a noninteractive interface and status output. Selection is for
+  the next boot, with prerequisite checks, exclusive locking, write-failure
+  rollback and preservation of recovery consoles and active sessions.
+- Added SDDM to the pinned target manifest with QtQuick runtime, Qt XCB
+  plugins and Mesa rendering support. The native OpenRC service uses Debian
+  PAM/elogind, packaged sysusers/tmpfiles, the embedded theme, OpenRC power
+  commands and the full Blue Mess desktop through Debian's Xsession wrapper.
+  No Plasma desktop, autologin or second service supervisor is introduced.
+- Package integration preserves the chosen manager and diverts SDDM's vendor
+  init entry point. All three tty1 owners reject conflicting service starts.
+  The session checker supports SDDM's allocated VT and private Xauthority.
+- Added isolated switcher/rollback/session checks and a focused disposable-VM
+  login matrix, with a dedicated PR workflow. Runtime validation is pending;
+  implementation alone is not evidence of working SDDM authentication or UI.
+
 ## 2026-11-09: bounded greeter startup readiness and settling delay
 
 - Native OpenRC greetd startup now waits at most 15 seconds for an accessible

@@ -29,6 +29,51 @@ been established. Installer observations are reported separately by VM tooling.
 
 ## Local login and seat access
 
+### Switching login managers
+
+`sudo bluemess-greeter-switcher` offers tuigreet (default), agetty and SDDM.
+The equivalent arguments are `tuigreet`, `agetty` and `sddm`; `status` reports
+both the next-boot selection and running services. Reboot when ready to apply
+the selection. The tool does not restart services during an active session.
+
+The saved choice is `/etc/blue-mess/greeter`, read as plain text. The switcher
+updates only the three managed login-service runlevel entries and
+`/etc/X11/default-display-manager`, preserving tty2/tty3/serial recovery.
+It validates prerequisites first, excludes concurrent invocations, and rolls
+back configuration and links if a write fails. The native service guards
+reject an unselected or competing manager, including package-triggered starts.
+The live installer always retains agetty. Package reconfiguration preserves
+the installed system's selected manager instead of restoring tuigreet.
+
+SDDM uses `/etc/sddm.conf.d/90-blue-mess.conf`, the embedded theme, Debian
+`/etc/pam.d/sddm` and `/etc/pam.d/sddm-greeter`, and Debian's Xsession wrapper.
+The only offered session is Blue Mess. SDDM's modern VT allocation replaces
+the obsolete MinimumVT option; inspect `loginctl` for the current display VT.
+The desktop session checker accepts a matching local SDDM X11 VT on seat0.
+OpenRC owns the daemon and power commands. Systemd PID 1 and Plasma are not
+installed. Existing local `/etc/sddm.conf` settings have higher precedence;
+inspect them if the displayed behavior differs from the packaged defaults.
+
+For a failed graphical login, use tty2/tty3 and check `rc-service sddm status`,
+tty4 daemon diagnostics, `/var/log/rc.log`, `/var/log/Xorg.*.log`,
+`~/.local/share/sddm/xorg-session.log` and
+`~/.local/state/blue-mess/desktop.log`. Debian SDDM is built with journald;
+the native service directs daemon stderr to tty4 so daemon diagnostics use
+its console fallback without installing a journal service. PAM diagnostics
+remain in system logs. Do not assume an absent journal means SDDM is healthy.
+
+To recover, run `sudo bluemess-greeter-switcher tuigreet` or select `agetty`,
+then reboot. Never manually start a second login manager alongside the first.
+If configuration is interrupted, run the switcher again from a recovery login.
+An abandoned switcher lock under `/run/lock` disappears at reboot.
+
+The focused runtime suite is `python3 vm/verify.py --greeters-only --iso ISO
+--output out/greeter-verification` inside the documented privileged builder.
+It installs to a disposable QEMU disk and tests all three choices, graphical
+password authentication, full desktop/audio startup, repeated logout/login,
+reboot persistence and upgrade preservation. Its `greeter-results.json` is
+separate from the full release and three-boot RAM acceptance report.
+
 Sign in at tuigreet as your ordinary user on the machine's tty1, then run
 `bluemess-desktop start` from that login. Run `bluemess-session-check`
 from tty1 or an Openbox terminal to inspect that process's session.
