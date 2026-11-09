@@ -29,6 +29,8 @@ done
 def sddm_login(guest, password, output, suffix):
     phase(f'SDDM {suffix}: authenticate through the real graphical password field')
     sddm_prompt(guest, output, suffix + '-login')
+    guest.qmp.chord('ctrl', 'a')
+    guest.qmp.chord('backspace')
     guest.qmp.type(password + '\n')
     facts = guest.run('''set -eu
 n=0
@@ -60,10 +62,14 @@ tr '\\000' '\\n' < /proc/"$pid"/environ | grep -E '^(DISPLAY|XAUTHORITY|DBUS_SES
         raise Failure('SDDM desktop lacks display authentication or session environment')
     user = 'runuser -u tester -- env ' + ' '.join(shlex.quote(k + '=' + v) for k, v in values.items()) + ' '
     guest.run(user + "xprop -root _NET_SUPPORTING_WM_CHECK | grep -E 'window id # 0x[0-9a-f]+'")
-    guest.qmp.chord('ctrl', 'alt', 't')
-    guest.run('n=0; until pgrep -u tester -x xfce4-terminal; do n=$((n+1)); test "$n" -le 30; sleep 1; done', timeout=45)
-    guest.qmp.command('screendump', {'filename': str(output / f'sddm-{suffix}-desktop.ppm')})
+    for attempt in range(3):
+        if guest.run('pgrep -u tester -x xfce4-terminal || true').strip():
+            break
+        guest.qmp.chord('ctrl', 'alt', 't')
+        guest.run('n=0; until pgrep -u tester -x xfce4-terminal >/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || break; sleep 1; done', timeout=30)
+    guest.run('pgrep -u tester -x xfce4-terminal')
     audio_playback(guest, output, 'sddm-' + suffix)
+    guest.qmp.command('screendump', {'filename': str(output / f'sddm-{suffix}-desktop.ppm')})
     return user
 
 
@@ -99,8 +105,20 @@ test "$(readlink /etc/runlevels/default/sddm)" = /etc/init.d/sddm
     reboot_as_root(guest, password)
     sddm_prompt(guest, output, 'first-boot')
     guest.qmp.type('incorrect\n')
-    time.sleep(4)
-    guest.run('! pgrep -u tester -x openbox')
+    # PAM's rejection and the greeter's field reset are asynchronous. A fixed
+    # four-second pause raced them on TCG and cleared part of the next password.
+    guest.run('''set -eu
+n=0
+until grep -Fq 'pam_unix(sddm:auth): authentication failure' /var/log/messages; do
+    n=$((n+1)); test "$n" -le 60; sleep 1
+done
+n=0
+while pgrep -f '^/usr/lib/[^ ]*/sddm/sddm-helper .*--user tester( |$)' >/dev/null; do
+    n=$((n+1)); test "$n" -le 60; sleep 1
+done
+! pgrep -u tester -x openbox
+''', timeout=150)
+    time.sleep(3)
     user = sddm_login(guest, password, output, 'first')
     logout_sddm(guest, user, output, 'first')
     result['checks'].append('SDDM rejects a wrong password; real graphical login starts the full Blue Mess session with elogind, D-Bus, panel, power manager, polkit, terminal and audible PipeWire output; logout returns to SDDM')
