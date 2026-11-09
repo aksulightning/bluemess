@@ -493,7 +493,16 @@ runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q |
 xpid=$(pgrep -u tester -x Xorg); test -n "$xpid"
 obpid=$(pgrep -u tester -x openbox); test -n "$obpid"
 tpid=$(pgrep -u tester -x xfce4-terminal); test -n "$tpid"
-child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' '); test -n "$child"
+# GTK/VTE creates the terminal process before it forks the interactive shell.
+# Wait for that child rather than treating process creation as shell readiness.
+n=0
+while :; do
+    child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' ')
+    if [ -n "$child" ] && [ -e /proc/"$child"/exe ]; then
+        case "$(readlink /proc/"$child"/exe)" in */busybox) break ;; esac
+    fi
+    n=$((n+1)); test "$n" -le 30; sleep 1
+done
 case "$(readlink /proc/"$child"/exe)" in */busybox) ;; *) exit 1;; esac
 tr '\\000' ' ' < /proc/"$child"/cmdline | grep -Eq '(^|/|-| )ash( |$)'
 tr '\\000' ' ' < /proc/"$child"/cmdline; printf '\\n'
