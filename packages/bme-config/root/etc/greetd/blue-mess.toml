@@ -7,5 +7,6 @@ switch = true
 source_profile = false
 
 [default_session]
-command = "/usr/bin/tuigreet --cmd '/usr/bin/ash -il'"
+# Keep visible output changing every second while waiting for login input.
+command = "/usr/bin/tuigreet --time --time-format '%H:%M:%S' --cmd '/usr/bin/ash -il'"
 user = "_greetd"
