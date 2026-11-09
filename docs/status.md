@@ -1,5 +1,18 @@
 # Implementation record
 
+## 2026-11-09: Applications menu on the default panel
+
+- Added XFCE's built-in Applications Menu as the first item on the bottom
+  panel, with a visible Applications label and menu icons. The terminal
+  launcher and all existing panel items retain their IDs and order.
+- Uses the default installed-application categories and existing xfce4-panel
+  dependencies. No additional package or session manager is required.
+- Existing user layouts remain intact; the README documents adding the menu
+  interactively. New users and users without panel settings get the default.
+- XML parsing, plugin-ID consistency, existing-item preservation and packaged
+  configuration checks passed. Interactive menu opening and application launch
+  have not been exercised locally.
+
 ## 2026-11-09: keep tuigreet output updating while idle
 
 - Enabled tuigreet's built-in clock with an explicit seconds format in the

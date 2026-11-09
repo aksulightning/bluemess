@@ -95,11 +95,16 @@ return to console-only logins, and `bluemess-desktop status` to inspect the sett
 Auto-start is off by default and never starts X on tty2/tty3, the serial console, SSH,
 or as root. Leaving Openbox returns to the authenticated text console.
 
-The bottom panel contains a terminal launcher, window list, workspace switcher,
+The bottom panel contains an Applications menu, terminal launcher, window list, workspace switcher,
 notification area, power indicator and clock. There is no screensaver, automatic
 screen locking, idle logout, idle suspend, dimming or display blanking by default.
 Closing a laptop lid requests suspend through elogind; critical battery power
 requests a controlled shutdown. Hardware support must be checked on real laptops.
+
+Existing users keep their panel layout. To add the Applications menu to an
+existing desktop, run `xfce4-panel --add=applicationsmenu` as your ordinary
+user in an Openbox terminal, then use Panel Preferences → Items to move it
+before the terminal launcher. New users receive this layout by default.
 
 PipeWire, WirePlumber and PulseAudio/ALSA compatibility are included and start
 automatically with the desktop. Closing a terminal leaves audio running;
