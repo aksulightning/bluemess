@@ -15,8 +15,27 @@
   init entry point. All three tty1 owners reject conflicting service starts.
   The session checker supports SDDM's allocated VT and private Xauthority.
 - Added isolated switcher/rollback/session checks and a focused disposable-VM
-  login matrix, with a dedicated PR workflow. Runtime validation is pending;
-  implementation alone is not evidence of working SDDM authentication or UI.
+  login matrix, with a dedicated PR workflow. All 74 tests passed under both
+  local dash and the pinned builder's BusyBox ash; hosted static checks and
+  candidate ISO assembly passed.
+- [Hosted run 42608809521](https://github.com/aksulightning/bluemess/actions/runs/42608809521)
+  passed the full focused matrix at `58d16a95c15bb2594fafb00ef7e6c44da7ae5cb0`:
+  real offline installation, native OpenRC boot, greetd restart/crash recovery,
+  default tuigreet authentication and desktop startup, selection during an
+  active desktop, and preservation through `dpkg-reconfigure bme-config`.
+- Real SDDM keyboard authentication rejected a wrong password, then completed
+  three login/logout cycles, including one after reboot. The checks verified
+  the Blue Mess session, elogind/seat/VT, runtime-directory permissions and SDDM's Xauthority,
+  D-Bus, Openbox, panel, power manager, polkit, terminal and non-silent captured
+  PipeWire playback. Saved screenshots show the delivered desktop.
+- The same VM then selected agetty, rebooted, authenticated on tty1, launched
+  the desktop, restored tuigreet across another reboot, and powered off cleanly.
+  The harness now waits for terminal shell creation, asynchronous PAM rejection
+  and Openbox window-manager readiness instead of assuming process creation is
+  enough. No production authentication bypass or test account was added.
+- This is focused QEMU/TCG validation, not full release/RAM acceptance or
+  physical-hardware validation. It does not establish that the original
+  reported greeter problem outside this VM is resolved.
 
 ## 2026-11-09: bounded greeter startup readiness and settling delay
 

@@ -41,7 +41,9 @@ Native start guards enforce mutual exclusion. Upgrades reapply the saved
 choice; the live installer remains on agetty. Recovery consoles are independent.
 SDDM uses its embedded QtQuick theme, Debian PAM/common-session with elogind,
 and Debian's Xsession wrapper to launch the same packaged desktop directly.
-It owns the X server and private Xauthority file; no nested `startx` is used.
+With `DisplayServer=x11`, SDDM owns the root X server and private Xauthority
+file; the desktop runs as the authenticated ordinary user. No nested `startx`
+is used.
 Modern SDDM selects an available VT, which the session checker validates against
 elogind rather than assuming tty1. The console choices retain their tty1 guard.
 
