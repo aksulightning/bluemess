@@ -1,0 +1,136 @@
+#!/usr/bin/ash
+# Prepare the installed system; never download or execute a vendor installer.
+set -eu
+
+pin=/etc/apt/preferences.d/00blue-mess-nvidia-run.pref
+nouveau=/etc/modprobe.d/blue-mess-disable-nouveau.conf
+lock=/run/bluemess-prepare-gpu-install.lock
+temporary=
+cleanup() { [ -z "$temporary" ] || rm -f "$temporary"; }
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+die() { printf '%s\n' "$*" >&2; exit 1; }
+usage() { echo 'Usage: sudo bluemess-prepare-gpu-install [nvidia|amd]'; }
+
+# Refuse to overwrite administrator changes, including symlinks. Identical
+# files are left alone, so rerunning after a failed APT/initramfs step is safe.
+write_config() {
+    destination=$1
+    mkdir -p "${destination%/*}"
+    temporary=$(mktemp "${destination}.XXXXXX")
+    cat > "$temporary"
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+        if [ -L "$destination" ] || [ ! -f "$destination" ]; then
+            die "Refusing to replace $destination; review or back it up first."
+        fi
+        cmp -s "$temporary" "$destination" ||
+            die "Refusing to replace $destination; review or back it up first."
+        rm -f "$temporary"
+    else
+        chmod 0644 "$temporary"
+        mv -f "$temporary" "$destination"
+    fi
+    temporary=
+}
+
+[ "$#" -le 1 ] || { usage >&2; exit 2; }
+case "${1:-}" in -h|--help) usage; exit 0 ;; esac
+[ "$(id -u)" -eq 0 ] || die 'Run this command with sudo.'
+[ "$(dpkg --print-architecture)" = amd64 ] || die 'This helper supports Debian amd64 only.'
+gpu=${1:-}
+if [ -z "$gpu" ]; then
+    printf 'GPU to prepare (nvidia/amd): '
+    IFS= read -r gpu || die 'No GPU selected; nothing changed.'
+fi
+case "$gpu" in
+    nvidia|NVIDIA) gpu=nvidia ;;
+    amd|AMD) gpu=amd ;;
+    *) die 'Select nvidia or amd; nothing changed.' ;;
+esac
+while :; do
+    printf 'Have you installed system updates? (y/n): '
+    IFS= read -r answer || die 'No confirmation; nothing changed.'
+    case "$answer" in
+        y|Y) break ;;
+        n|N) die 'Install system updates, reboot if the kernel changed, then rerun this command.' ;;
+        *) echo 'Please answer y or n.' ;;
+    esac
+done
+
+for tool in apt-get dpkg-query flock update-initramfs; do
+    command -v "$tool" >/dev/null 2>&1 || die "Required command is missing: $tool"
+done
+mkdir -p "${lock%/*}"
+exec 9>"$lock"
+flock -n 9 || die 'Another GPU preparation is already running.'
+audit=$(dpkg --audit) || die 'Could not inspect package state.'
+[ -z "$audit" ] || {
+    printf '%s\n' "$audit" >&2
+    die 'Unfinished package operations: repair them before preparing GPU drivers.'
+}
+apt-get check || die 'APT reports broken dependencies or a busy package manager; resolve this first.'
+
+if [ "$gpu" = nvidia ]; then
+    # Match the same NVIDIA-specific families as the APT pin, including i386
+    # libraries and legacy/Tesla packages. Residual configuration is harmless.
+    packages=$(dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n') ||
+        die 'Could not inspect installed packages.'
+    conflicts=$(printf '%s\n' "$packages" | while read -r package status; do
+        [ "$status" = installed ] || continue
+        case "${package%%:*}" in
+            *nvidia*|libcuda*|libnvcuvid*|libnvoptix*|libnvenc*) printf '%s\n' "$package" ;;
+        esac
+    done)
+    [ -z "$conflicts" ] || {
+        printf 'APT-managed NVIDIA packages found:\n%s\n' "$conflicts" >&2
+        die 'Do not mix these with the .run installer. Review and remove them through APT first; no packages were removed by this helper.'
+    }
+    kernel=$(uname -r)
+    case "$kernel" in ''|*[!a-zA-Z0-9.+_-]*) die 'Unsupported kernel release name.' ;; esac
+
+    write_config "$pin" <<'PIN'
+# Managed by bluemess-prepare-gpu-install: reserve NVIDIA for the .run installer.
+Package: *nvidia*:any libcuda*:any libnvcuvid*:any libnvoptix*:any libnvenc*:any
+Pin: version *
+Pin-Priority: -1
+PIN
+    architectures=$(dpkg --print-foreign-architectures)
+    if ! printf '%s\n' "$architectures" | grep -qx i386; then
+        dpkg --add-architecture i386
+    fi
+    apt-get -o APT::Update::Error-Mode=any update
+    # Simulate first; unavailable headers or multiarch dependencies must not
+    # disable the currently working Nouveau console. Never remove packages.
+    set -- build-essential dkms pkg-config libglvnd-dev libglvnd-dev:i386 "linux-headers-$kernel"
+    apt-get --simulate --no-remove --no-install-recommends install "$@" ||
+        die 'Prerequisites unavailable. Check repositories and matching headers; boot the updated kernel if necessary. Nouveau was not changed.'
+    apt-get --no-remove --no-install-recommends install "$@"
+    [ -r "/lib/modules/$kernel/build/Makefile" ] ||
+        die 'Matching kernel headers are not ready. Nouveau was not changed.'
+
+    write_config "$nouveau" <<'NOUVEAU'
+# Managed by bluemess-prepare-gpu-install for the NVIDIA .run installer.
+blacklist nouveau
+options nouveau modeset=0
+NOUVEAU
+    update-initramfs -u -k all ||
+        die 'Initramfs update failed. Do not reboot or run the installer yet; fix the failure and rerun this helper.'
+    cat <<'NEXT'
+NVIDIA prerequisites installed; APT-managed NVIDIA packages are blocked.
+Reboot before running the NVIDIA .run installer. Nouveau was not unloaded live.
+After reboot, confirm that "lsmod | grep nouveau" prints nothing.
+Exit the desktop and run the .run installer from tty2 or tty3, with X stopped.
+If desktop auto-start is enabled, disable it as your ordinary user before reboot:
+  bluemess-desktop auto-start false
+The .run installer has NOT been downloaded or started. Select DKMS support in it.
+NEXT
+else
+    apt-get -o APT::Update::Error-Mode=any update
+    set -- firmware-amd-graphics libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers xserver-xorg-video-amdgpu
+    apt-get --simulate --no-remove --no-install-recommends install "$@"
+    apt-get --no-remove --no-install-recommends install "$@"
+    update-initramfs -u -k all ||
+        die 'Initramfs update failed. Resolve the failure and rerun this helper before rebooting.'
+    echo 'AMD firmware and Mesa installed through APT. Reboot to use the updated graphics stack.'
+    echo 'No vendor .run installer is needed. Existing NVIDIA preparation settings, if any, were left unchanged.'
+fi

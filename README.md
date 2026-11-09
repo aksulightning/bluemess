@@ -113,6 +113,13 @@ local development and later driver installation. Debian's Openbox package
 requires Python 3, so it remains installed as a dependency. No NVIDIA driver is
 installed automatically.
 
+Before installing GPU drivers, run `sudo bluemess-prepare-gpu-install` and
+select NVIDIA or AMD. Confirm that system updates have been installed first.
+The NVIDIA path prepares dependencies for the vendor `.run` installer, blocks
+APT-managed NVIDIA packages, and disables Nouveau for the next boot. Reboot
+before running the installer. The AMD path installs Debian firmware and Mesa
+through APT. See [GPU preparation and undo instructions](docs/gpu-install.md).
+
 Root is password-locked;
 use `sudo`. BusyBox ash is the interactive shell; Debian Bash and dash remain.
 

@@ -1,5 +1,28 @@
 # Implementation record
 
+## 2026-11-09: GPU installation preparation helper
+
+- Added `bluemess-prepare-gpu-install` to the bme-config package. It asks for
+  NVIDIA or AMD and confirmation that system updates have been installed,
+  requires root on amd64, checks package state and prevents concurrent runs.
+- NVIDIA preparation refuses existing APT-managed NVIDIA packages, pins the
+  NVIDIA package families across architectures, enables i386 and installs the
+  requested build/GLVND dependencies plus headers for the running kernel.
+  Only after those succeed does it disable Nouveau and rebuild initramfs.
+  It requires a reboot before the user runs the vendor installer; it never
+  downloads or starts a `.run` file or unloads the active graphics driver.
+- AMD preparation installs Debian firmware, Mesa and the AMD Xorg driver
+  through APT without adding NVIDIA pins or blacklists. Both paths refuse
+  package removals and report initramfs failures without claiming success.
+- Added usage, retry and undo documentation. Existing custom configuration
+  is preserved, and no private user diagnostic logs were added.
+- All 53 local tests passed under dash, including 17 GPU preparation tests
+  with isolated command stubs and real APT policy parsing for amd64/i386.
+  Shell syntax checks and Debian package assembly passed; the packaged helper
+  matches the source and is executable. BusyBox, ShellCheck, Docker and QEMU
+  are unavailable locally. Actual package installation, initramfs rebuilding,
+  vendor driver installation and physical NVIDIA/AMD operation remain untested.
+
 ## 2026-11-09: archive the verified ISO workflow
 
 - Moved `.github/workflows/iso.yml` unchanged to
