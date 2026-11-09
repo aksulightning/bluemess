@@ -173,6 +173,14 @@ printf 'User=%s\nSeat=%s\nTTY=%s\nActive=yes\nRemote=%s\nService=%s\nType=%s\nVT
 fi
 ''')
             script.chmod(0o755)
+            # The builder runs as root; model an ordinary session consistently.
+            for name, body in {
+                'id': 'echo 1000',
+                'stat': 'if [ "$2" = "%u:%a" ]; then echo 1000:700; else exec /usr/bin/stat "$@"; fi',
+            }.items():
+                stub = root / name
+                stub.write_text('#!/bin/sh\n' + body + '\n')
+                stub.chmod(0o755)
             env = dict(os.environ, PATH=str(root) + ':' + os.environ['PATH'],
                        XDG_RUNTIME_DIR=str(runtime), DISPLAY='')
             command = SHELL + [str(PAYLOAD / 'usr/bin/bluemess-session-check')]

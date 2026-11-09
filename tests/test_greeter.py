@@ -13,6 +13,8 @@ PAYLOAD = ROOT / 'packages/bme-config/root'
 HELPER = PAYLOAD / 'usr/lib/blue-mess/greetd-ready'
 SERVICE = PAYLOAD / 'usr/share/blue-mess/init.d/greetd'
 SHELL = shlex.split(os.environ.get('BME_TEST_SHELL', 'dash'))
+# Resolve before fixtures prepend their fake busybox command to PATH.
+SHELL[0] = shutil.which(SHELL[0]) or SHELL[0]
 
 
 class GreeterFixture(unittest.TestCase):

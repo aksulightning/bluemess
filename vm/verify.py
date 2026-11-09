@@ -340,6 +340,9 @@ tail -n 120 /home/tester/.local/state/blue-mess/desktop.log
 printf '%s\\n' '--- Xorg log ---'
 tail -n 120 /home/tester/.local/share/xorg/Xorg.0.log
 printf '%s\\n' '--- all processes ---'
+for path in /var/log/Xorg.*.log /var/log/sddm.log /home/tester/.local/share/sddm/xorg-session.log; do
+    [ ! -r "$path" ] || { printf '%s\\n' "$path"; tail -n 100 "$path"; }
+done
 ps -eo pid,ppid,user,tty,stat,args
 ''', timeout=30, check=False)
     record(output, f'console-{suffix}-{stage}.log', facts)
