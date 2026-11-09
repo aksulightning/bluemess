@@ -1,5 +1,22 @@
 # Implementation record
 
+## 2026-11-09: rolling untested release
+
+- Successful pushes or manual builds on main now replace the
+  `untested-refreshing` prerelease and tag after verifying the ISO checksum.
+  Feature/fix branches still upload untested Actions artifacts.
+- The release job serializes replacement, skips superseded commits, and
+  uploads the replacement as a draft before publishing. Only the fixed
+  rolling tag/release is deleted; existing commit-tagged releases remain.
+- YAML parsing and embedded Bash syntax passed. Seven mocked lifecycle
+  scenarios passed: first publication, replacement, orphan tag, stale
+  commit, API lookup failure, bad checksum, and upload failure.
+- Hosted publication is pending. Replacement is not atomic: an upload
+  failure after deletion can leave the release absent or in draft until
+  rerun. The untested workflow still skips static/VM/RAM validation.
+- Verified run 42569950677 failed the unchanged 350 MiB RAM gate; the
+  separate untested run 42569950675 successfully uploaded its ISO artifact.
+
 ## 2026-11-08: three login VTs, diagnostics on tty4 and automatic PipeWire
 
 - Installed tty1 uses greetd/tuigreet, tty2 and tty3 use agetty, and tty4

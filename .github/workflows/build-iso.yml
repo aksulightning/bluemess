@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: iso-build-only-${{ github.ref }}
-  cancel-in-progress: true
+  # Do not cancel main while it may be replacing the rolling release.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:
@@ -83,10 +84,13 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/blue-mess-edition'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    concurrency:
+      group: untested-refreshing-release
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -94,7 +98,7 @@ jobs:
         with:
           name: blue-mess-edition-${{ needs.build.outputs.version }}-amd64-UNTESTED
           path: release
-      - name: Verify checksum and publish untested prerelease
+      - name: Verify checksum and replace rolling untested prerelease
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,26 +108,35 @@ jobs:
           cd release
           sha256sum -c SHA256SUMS
           mapfile -d '' -t assets < <(find . -type f -print0)
-          release_tag="$SOURCE_COMMIT-iso-untested"
-          tag_commit=$(gh api "repos/$GH_REPO/git/matching-refs/tags/$release_tag" \
-            --jq ".[] | select(.ref == \"refs/tags/$release_tag\") | .object.sha")
-          if [[ -n "$tag_commit" && "$tag_commit" != "$SOURCE_COMMIT" ]]; then
-            echo "Tag $release_tag points to a different commit" >&2
-            exit 1
-          fi
-          if [[ "$tag_commit" == "$SOURCE_COMMIT" ]] &&
-            gh release view "$release_tag" --json isDraft --jq '.isDraft' | grep -Fxq false; then
-            echo "Release $release_tag is already published"
+          # Older reruns must not roll the shared download back.
+          current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$current_main" != "$SOURCE_COMMIT" ]]; then
+            echo 'Skipping rolling release: main has a newer commit'
             exit 0
           fi
-          gh release create "$release_tag" --target "$SOURCE_COMMIT" --prerelease --latest=false \
-            --title "Blue Mess Edition — UNTESTED ISO (${SOURCE_COMMIT:0:12})" \
+          release_tag=untested-refreshing
+          # Query first so authentication/API failures stop before deletion.
+          release_id=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == "untested-refreshing") | .id')
+          tag_commit=$(gh api "repos/$GH_REPO/git/matching-refs/tags/$release_tag" \
+            --jq ".[] | select(.ref == \"refs/tags/$release_tag\") | .object.sha")
+          if [[ -n "$release_id" ]]; then
+            gh api --method DELETE "repos/$GH_REPO/releases/$release_id"
+          fi
+          if [[ -n "$tag_commit" ]]; then
+            gh api --method DELETE "repos/$GH_REPO/git/refs/tags/$release_tag"
+          fi
+          gh release create "$release_tag" --target "$SOURCE_COMMIT" --draft --prerelease --latest=false \
+            --title "Blue Mess Edition — UNTESTED refreshing ISO" \
             --notes-file - "${assets[@]}" <<EOF
           Development-only installer for amd64 UEFI without Secure Boot. Installation erases the selected disk.
 
           The ISO checksum passed. Boot, installation, desktop and memory validation were skipped.
           Download the ISO and SHA256SUMS together and verify the checksum before use.
 
+          This rolling release is replaced by each successful main build. Its tag and downloads change.
+
           Source commit $SOURCE_COMMIT
           Build run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
+          gh release edit "$release_tag" --draft=false --prerelease --latest=false

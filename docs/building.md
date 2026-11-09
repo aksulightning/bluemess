@@ -30,10 +30,14 @@ dispatch is available after the workflow is on the default branch.
 
 On successful assembly and checksum verification it uploads an Actions artifact
 whose name ends in `-UNTESTED`, with the ISO, checksum and build metadata.
-On a push to `feat/blue-mess-edition`, a separate job checks the downloaded
-artifact's checksum and publishes it as the development-only
-`<commit-sha>-iso-untested` prerelease. The build metadata keeps
-`validated=false`. Build diagnostics are saved if assembly fails.
+On a push or manual dispatch on `main`, a separate job checks the downloaded
+artifact's checksum and replaces the development-only `untested-refreshing`
+prerelease and tag with the new build. Publishing is serialized, and an older
+commit is skipped if `main` has moved on. The replacement uploads as a draft
+before publication; a failed replacement can leave the rolling download absent
+or in draft until the release job is rerun. Existing commit-tagged releases
+are retained. The build metadata keeps `validated=false`. Build diagnostics
+are saved if assembly fails.
 
 For a local build on a disposable Linux development machine with Docker:
 
@@ -61,6 +65,7 @@ After full verification, the release job downloads the validated artifact,
 checks its ISO checksum, and publishes those bytes. A push to
 `feat/blue-mess-edition` uses the `<commit-sha>-iso-tested` prerelease tag.
 A push of an existing `v*` tag publishes under that version tag. Published
-assets stay attached to their original releases. Both workflows grant
+assets from tested releases stay attached to their original releases; the
+untested rolling release is replaced as described above. Both workflows grant
 `contents: write` only to their release jobs. Official actions are pinned
 to full commit SHAs resolved from their upstream tag refs at implementation time.
