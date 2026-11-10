@@ -14,7 +14,7 @@ getent passwd sddm >/dev/null || { echo 'The Debian sddm account is missing.' >&
 grep -Eq '^[[:space:]]*session[[:space:]]+optional[[:space:]]+pam_elogind[.]so([[:space:]]|$)' /etc/pam.d/common-session || {
     echo 'SDDM requires pam_elogind in the Debian common-session stack.' >&2; exit 1;
 }
-for package in sddm qml6-module-qtquick qml6-module-qtqml-workerscript qt6-qpa-plugins libgl1-mesa-dri; do
+for package in sddm qml6-module-qtquick qml6-module-qtqml-workerscript qt6-qpa-plugins libgl1-mesa-dri:amd64; do
     [ "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null)" = installed ] || {
         echo "SDDM prerequisite package missing: $package" >&2; exit 1;
     }
