@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from verify import Failure, audio_playback, desktop, greeter_recovery, phase, record, wait_for_greeter
+from verify import Failure, audio_playback, desktop, greeter_recovery, phase, record, wait_for_greeter, wait_for_service
 
 
 def reboot_as_root(guest, password):
@@ -12,6 +12,7 @@ def reboot_as_root(guest, password):
 
 
 def sddm_prompt(guest, output, suffix):
+    wait_for_service(guest, 'sddm')
     guest.run('''set -eu
 rc-service sddm status
 ! rc-service greetd status
@@ -132,6 +133,7 @@ done
     result['checks'].append('SDDM remains selected and authenticates after another reboot')
     guest.run('bluemess-greeter-switcher agetty')
     reboot_as_root(guest, password)
+    wait_for_service(guest, 'bme-getty.tty1')
     guest.run('''set -eu
 rc-service bme-getty.tty1 status
 ! rc-service greetd status

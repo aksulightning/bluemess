@@ -1,5 +1,23 @@
 # Implementation record
 
+## 2026-11-10: wait for login-manager startup in VM verification
+
+- [Hosted run 42611300029](https://github.com/aksulightning/bluemess/actions/runs/42611300029)
+  passed static checks and ISO assembly, then failed because `root_state`
+  queried greetd while OpenRC still reported `starting` (status 8). Serial
+  authentication had completed before greetd's readiness/settling hook.
+- Added a bounded service-status wait before the installed-system assertions
+  and the SDDM/agetty reboot checks. Already-started services proceed at once;
+  persistent failures exhaust the wait and retain OpenRC status/boot diagnostics.
+  The existing daemon, supervisor, greeter, authentication and desktop checks
+  remain mandatory. No target service or startup timing was changed.
+- All 81 local tests passed under dash, including seven VM readiness tests.
+  Changed Python files compile and 47 literal guest commands pass dash syntax
+  checking. Docker, BusyBox, ShellCheck and QEMU are unavailable locally;
+  hosted target-shell checks and the focused VM matrix are pending this fix.
+  Full release/RAM acceptance and the original physical-console issue remain
+  unverified.
+
 ## 2026-11-09: greeter switcher and minimal SDDM integration
 
 - Added `bluemess-greeter-switcher` with the ordered choices tuigreet, agetty

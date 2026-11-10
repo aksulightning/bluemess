@@ -254,8 +254,29 @@ def record(output, name, text):
     return text
 
 
+def wait_for_service(guest, service):
+    """Allow asynchronous boot to finish without accepting a failed service."""
+    phase(f'Wait for OpenRC service {service} to finish starting')
+    # Serial getty can accept a login before other default-runlevel services
+    # finish. In particular, greetd has a bounded readiness check and delay.
+    guest.run(f'''set -eu
+n=0
+until rc-service {shlex.quote(service)} status; do
+    if [ "$n" -ge 60 ]; then
+        echo {shlex.quote('Timed out waiting for OpenRC service ' + service)} >&2
+        rc-status --all || :
+        tail -n 120 /var/log/rc.log || :
+        exit 1
+    fi
+    n=$((n+1))
+    sleep 1
+done
+''', timeout=90)
+
+
 def root_state(guest, output, suffix):
     phase(f'{suffix}: assert native PID 1, service state and system configuration')
+    wait_for_service(guest, 'greetd')
     facts = guest.run('''set -eu
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
