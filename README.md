@@ -1,5 +1,32 @@
 # Blue Mess Edition
 
+## Login-manager choices
+
+Run `sudo bluemess-greeter-switcher` for a three-option menu, or select directly:
+
+```sh
+sudo bluemess-greeter-switcher tuigreet  # default, authenticated text greeter
+sudo bluemess-greeter-switcher agetty    # traditional text login
+sudo bluemess-greeter-switcher sddm      # graphical Blue Mess login
+bluemess-greeter-switcher status
+```
+
+The choice takes effect after reboot. Switching does not stop the current
+desktop or login shell. tty2, tty3 and serial recovery remain available;
+tty4 remains the diagnostics console. Package upgrades preserve the choice.
+
+New images include minimal SDDM with its embedded QtQuick theme, Xorg and the
+Blue Mess session. It uses Debian PAM/elogind authentication and launches the
+same Openbox, panel, power manager, polkit and PipeWire session automatically.
+There is no autologin and no Plasma desktop requirement. SDDM manages its own
+display and Xauthority file; do not run `startx` inside that desktop.
+
+On an older installation, install `sddm qml6-module-qtquick
+qml6-module-qtqml-workerscript qt6-qpa-plugins libgl1-mesa-dri` with
+`apt-get install --no-install-recommends`, then install the updated `bme-config`
+package before selecting SDDM. See [greeter troubleshooting](docs/troubleshooting.md#switching-login-managers).
+
+
 A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
 standalone Openbox, an XFCE panel and power manager, and XFCE Terminal. Greetd/tuigreet
 provides console login on tty1, then `bluemess-desktop start` opens the desktop.

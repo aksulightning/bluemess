@@ -19,7 +19,7 @@ Section: admin
 Priority: optional
 Architecture: all
 Maintainer: Blue Mess Edition contributors <bluemess@users.noreply.github.com>
-Depends: openrc, openrc-init, busybox, init-system-helpers, bash, dash, passwd, login, adduser, debianutils, util-linux, mount, sysvinit-utils, e2fsprogs, udev, kmod, systemd-standalone-sysusers, systemd-standalone-tmpfiles, dbus, elogind, libpam-elogind, libpam-runtime, chrony, iproute2
+Depends: openrc, openrc-init, busybox, init-system-helpers, bash, dash, passwd, login, adduser, debianutils, util-linux, mount, sysvinit-utils, e2fsprogs, udev, kmod, systemd-standalone-sysusers, systemd-standalone-tmpfiles, dbus, dbus-bin, elogind, libpam-elogind, libpam-runtime, chrony, iproute2
 Description: Blue Mess Edition native OpenRC integration and user defaults
  Supplies native boot and daemon ownership, BusyBox ash, minimal desktop
  defaults and explicit APT policy for Debian Sid.
@@ -27,8 +27,9 @@ CONTROL
 install -m 0755 "$here/bme-config/postinst" "$stage/DEBIAN/postinst"
 install -m 0755 "$here/bme-config/prerm" "$stage/DEBIAN/prerm"
 printf '%s\n' /etc/apt/apt.conf.d/90blue-mess /etc/greetd/blue-mess.toml \
-    /etc/default/grub.d/90-blue-mess.cfg /etc/blue-mess/syslog.conf > "$stage/DEBIAN/conffiles"
-for name in dbus elogind chrony udev greetd; do
+    /etc/default/grub.d/90-blue-mess.cfg /etc/blue-mess/syslog.conf \
+    /etc/conf.d/greetd /etc/sddm.conf.d/90-blue-mess.conf > "$stage/DEBIAN/conffiles"
+for name in dbus elogind chrony udev greetd sddm; do
     printf '/etc/insserv/overrides/%s\n' "$name" >> "$stage/DEBIAN/conffiles"
 done
 dpkg-deb --root-owner-group --build "$stage" "$output/bme-config_${version}_all.deb"

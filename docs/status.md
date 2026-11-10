@@ -1,5 +1,84 @@
 # Implementation record
 
+## 2026-11-10: wait for login-manager startup in VM verification
+
+- [Hosted run 42611300029](https://github.com/aksulightning/bluemess/actions/runs/42611300029)
+  passed static checks and ISO assembly, then failed because `root_state`
+  queried greetd while OpenRC still reported `starting` (status 8). Serial
+  authentication had completed before greetd's readiness/settling hook.
+- Added a bounded service-status wait before the installed-system assertions
+  and the SDDM/agetty reboot checks. Already-started services proceed at once;
+  persistent failures exhaust the wait and retain OpenRC status/boot diagnostics.
+  The existing daemon, supervisor, greeter, authentication and desktop checks
+  remain mandatory. No target service or startup timing was changed.
+- All 81 local tests passed under dash, including seven VM readiness tests.
+  Changed Python files compile and 47 literal guest commands pass dash syntax
+  checking. Docker, BusyBox, ShellCheck and QEMU are unavailable locally;
+  hosted target-shell checks and the focused VM matrix are pending this fix.
+  Full release/RAM acceptance and the original physical-console issue remain
+  unverified.
+
+## 2026-11-09: greeter switcher and minimal SDDM integration
+
+- Added `bluemess-greeter-switcher` with the ordered choices tuigreet, agetty
+  and SDDM, a noninteractive interface and status output. Selection is for
+  the next boot, with prerequisite checks, exclusive locking, write-failure
+  rollback and preservation of recovery consoles and active sessions.
+- Added SDDM to the pinned target manifest with QtQuick runtime, Qt XCB
+  plugins and Mesa rendering support. The native OpenRC service uses Debian
+  PAM/elogind, packaged sysusers/tmpfiles, the embedded theme, OpenRC power
+  commands and the full Blue Mess desktop through Debian's Xsession wrapper.
+  No Plasma desktop, autologin or second service supervisor is introduced.
+- Package integration preserves the chosen manager and diverts SDDM's vendor
+  init entry point. All three tty1 owners reject conflicting service starts.
+  The session checker supports SDDM's allocated VT and private Xauthority.
+- Added isolated switcher/rollback/session checks and a focused disposable-VM
+  login matrix, with a dedicated PR workflow. All 74 tests passed under both
+  local dash and the pinned builder's BusyBox ash; hosted static checks and
+  candidate ISO assembly passed.
+- [Hosted run 42608809521](https://github.com/aksulightning/bluemess/actions/runs/42608809521)
+  passed the full focused matrix at `58d16a95c15bb2594fafb00ef7e6c44da7ae5cb0`:
+  real offline installation, native OpenRC boot, greetd restart/crash recovery,
+  default tuigreet authentication and desktop startup, selection during an
+  active desktop, and preservation through `dpkg-reconfigure bme-config`.
+- Real SDDM keyboard authentication rejected a wrong password, then completed
+  three login/logout cycles, including one after reboot. The checks verified
+  the Blue Mess session, elogind/seat/VT, runtime-directory permissions and SDDM's Xauthority,
+  D-Bus, Openbox, panel, power manager, polkit, terminal and non-silent captured
+  PipeWire playback. Saved screenshots show the delivered desktop.
+- The same VM then selected agetty, rebooted, authenticated on tty1, launched
+  the desktop, restored tuigreet across another reboot, and powered off cleanly.
+  The harness now waits for terminal shell creation, asynchronous PAM rejection
+  and Openbox window-manager readiness instead of assuming process creation is
+  enough. No production authentication bypass or test account was added.
+- This is focused QEMU/TCG validation, not full release/RAM acceptance or
+  physical-hardware validation. It does not establish that the original
+  reported greeter problem outside this VM is resolved.
+
+## 2026-11-09: bounded greeter startup readiness and settling delay
+
+- Native OpenRC greetd startup now waits at most 15 seconds for an accessible
+  tty1 and a successful elogind D-Bus ping. Each ping has a one-second reply
+  timeout; BusyBox timeout bounds the complete wait. Changed failure reasons
+  are logged without repeating the same message on every probe.
+- Added `/etc/conf.d/greetd` as a Debian conffile with a three-second settling
+  delay, configurable from 0 to 30 seconds. Invalid settings fail before
+  startup. Added the explicit dbus-bin dependency and required timeout applet.
+- Existing two-second/five-per-minute OpenRC crash recovery remains intact.
+  The readiness hook runs only on start or explicit restart, not on daemon
+  respawns or login/logout. No periodic health checker or upgrade-time restart
+  is added. The clock workaround and local greetd TOML settings are preserved.
+- All 64 local tests passed under dash, including 11 new readiness/start-hook
+  tests and a real 15-second outer-deadline test using host GNU timeout.
+  Shell/Python syntax, new VM shell snippets, Debian package assembly,
+  packaged helper permissions/content and conffile registration passed.
+- The disposable-QEMU suite now checks explicit greetd restart and daemon
+  crash recovery before login, and verifies that the daemon stays unchanged
+  through desktop checks. Existing login/logout and three-boot checks remain.
+  Docker, QEMU, BusyBox and ShellCheck are unavailable locally; the full static
+  target checks, ISO/VM suite and physical-console validation remain pending.
+  A startup race is still a hypothesis; this is not a verified display fix.
+
 ## 2026-11-09: terminal paste and F10 defaults
 
 - Disabled XFCE Terminal's unsafe-paste dialog and menu shortcut key through

@@ -1,0 +1,112 @@
+#!/usr/bin/ash
+# Select exactly one next-boot login owner; never terminate a current session.
+set -eu
+. /usr/lib/blue-mess/greeter-common
+
+usage() {
+    echo 'Usage: bluemess-greeter-switcher [tuigreet|agetty|sddm|status]'
+    echo 'With no argument, choose from a menu. Changes take effect after reboot.'
+}
+[ "$#" -le 1 ] || { usage >&2; exit 2; }
+case ${1-} in
+    --help|-h) usage; exit 0 ;;
+    status)
+        selected=$(greeter_selected)
+        printf 'Next boot: %s\n' "$selected"
+        for service in greetd bme-getty.tty1 sddm; do
+            if rc-service "$service" status >/dev/null 2>&1; then
+                printf 'Running: %s\n' "$service"
+            fi
+        done
+        exit 0 ;;
+esac
+[ "$(id -u)" -eq 0 ] || { echo 'Run with sudo to change the greeter.' >&2; exit 1; }
+[ ! -L /etc/runlevels/default/bme-media ] || { echo 'The live installer keeps agetty; select a greeter on the installed system.' >&2; exit 1; }
+choice=${1-}
+if [ -z "$choice" ]; then
+    printf '1) tuigreet (default)\n2) agetty (text login)\n3) SDDM (graphical Blue Mess login)\nChoose [1-3]: '
+    read -r choice || exit 1
+fi
+case $choice in
+    1|tuigreet) choice=tuigreet ;;
+    2|agetty) choice=agetty ;;
+    3|sddm) choice=sddm ;;
+    --sync) choice=$(greeter_selected) ;; # Package upgrades restore the saved choice.
+    *) usage >&2; exit 2 ;;
+esac
+service=$(greeter_service "$choice")
+[ -x "/etc/init.d/$service" ] || { echo "Missing native service: $service; upgrade bme-config first." >&2; exit 1; }
+case $choice in
+    tuigreet)
+        if ! { [ -x /usr/sbin/greetd ] && [ -x /usr/bin/tuigreet ] &&
+            [ -r /etc/greetd/blue-mess.toml ] && getent passwd _greetd >/dev/null; }; then
+            echo 'Install greetd and tuigreet before selecting tuigreet.' >&2; exit 1;
+        fi
+        manager=/usr/sbin/greetd ;;
+    agetty)
+        [ -x /sbin/agetty ] || { echo 'agetty is missing.' >&2; exit 1; }
+        manager=/sbin/agetty ;;
+    sddm)
+        /usr/lib/blue-mess/sddm-check || exit 1
+        manager=/usr/bin/sddm ;;
+esac
+
+mkdir -p /run/lock /etc/blue-mess /etc/X11 /etc/runlevels/default
+lock=/run/lock/bluemess-greeter-switcher.lock
+mkdir "$lock" 2>/dev/null || { echo 'Another greeter switch is in progress.' >&2; exit 1; }
+changed=false
+committed=false
+cleanup() {
+    status=$?
+    trap - EXIT HUP INT TERM
+    if [ "$changed" = true ] && [ "$committed" = false ]; then
+        echo 'Switch failed; restoring the previous selection and runlevel links.' >&2
+        for level in /etc/runlevels/*; do
+            [ -d "$level" ] || continue
+            for name in greetd sddm bme-getty.tty1; do rm -f "$level/$name"; done
+        done
+        cp -a "$lock/runlevels/." /etc/runlevels/ || status=1
+        for name in greeter default-display-manager; do
+            case $name in greeter) target=/etc/blue-mess/greeter ;; *) target=/etc/X11/default-display-manager ;; esac
+            if [ -e "$lock/$name" ]; then cp -a "$lock/$name" "$target" || status=1; else rm -f "$target"; fi
+        done
+    fi
+    rm -f /etc/blue-mess/.greeter-switch-new /etc/X11/.greeter-switch-new
+    rm -rf "$lock"
+    exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+mkdir "$lock/runlevels"
+for target in /etc/blue-mess/greeter /etc/X11/default-display-manager; do
+    if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
+        echo "Refusing non-regular configuration: $target" >&2; exit 1;
+    fi
+    [ ! -e "$target" ] || cp -a "$target" "$lock/${target##*/}"
+done
+for level in /etc/runlevels/*; do
+    [ -d "$level" ] || continue
+    mkdir "$lock/runlevels/${level##*/}"
+    for name in greetd sddm bme-getty.tty1; do
+        link=$level/$name
+        [ -e "$link" ] || [ -L "$link" ] || continue
+        if [ ! -L "$link" ] || [ "$(readlink "$link")" != "/etc/init.d/$name" ]; then
+            echo "Refusing unmanaged runlevel entry: $link" >&2; exit 1;
+        fi
+        cp -a "$link" "$lock/runlevels/${level##*/}/$name"
+    done
+done
+changed=true
+for level in /etc/runlevels/*; do
+    [ -d "$level" ] || continue
+    for name in greetd sddm bme-getty.tty1; do rm -f "$level/$name"; done
+done
+ln -s "/etc/init.d/$service" "/etc/runlevels/default/$service"
+umask 022
+printf '%s\n' "$manager" > /etc/X11/.greeter-switch-new
+mv -f /etc/X11/.greeter-switch-new /etc/X11/default-display-manager
+printf '%s\n' "$choice" > /etc/blue-mess/.greeter-switch-new
+mv -f /etc/blue-mess/.greeter-switch-new /etc/blue-mess/greeter
+committed=true
+printf 'Next boot: %s. Reboot when ready; the current session is unchanged.\n' "$choice"

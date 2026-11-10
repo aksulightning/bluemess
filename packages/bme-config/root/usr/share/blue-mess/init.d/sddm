@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+# Debian LSB metadata lives in /etc/insserv/overrides/sddm.
+description="SDDM graphical Blue Mess login"
+command=/usr/bin/sddm
+supervisor=supervise-daemon
+pidfile=/run/bme-sddm.pid
+respawn_delay=2
+respawn_max=5
+respawn_period=60
+# Debian SDDM is built with journald support. Its daemon uses console logging
+# when stderr is a TTY; a logger pipe would discard its messages without journald.
+output_log=/dev/tty4
+error_log=/dev/tty4
+depend() { need bme-boot elogind bme-syslog; after bme-network; }
+start_pre() {
+    . /usr/lib/blue-mess/greeter-common
+    greeter_start_allowed sddm || return 1
+    /usr/lib/blue-mess/sddm-check || return 1
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/sddm.conf || return 1
+    ebegin 'Waiting up to 15 seconds for the console and elogind before SDDM'
+    busybox timeout -s KILL 15 /usr/lib/blue-mess/greetd-ready --wait
+    ready_status=$?
+    eend "$ready_status"
+    return "$ready_status"
+}

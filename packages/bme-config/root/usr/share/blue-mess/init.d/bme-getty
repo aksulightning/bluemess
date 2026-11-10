@@ -10,5 +10,13 @@ depend() { need bme-boot elogind; after bme-network; }
 start_pre() {
     # tty4 is diagnostics only. No additional F-key login consoles.
     case "$port" in tty1|tty2|tty3|ttyS0) ;; *) eerror "Login is disabled on $port"; return 1 ;; esac
+    if [ "$port" = tty1 ]; then
+        . /usr/lib/blue-mess/greeter-common
+        greeter_start_allowed agetty || return 1
+    fi
     [ -c "/dev/$port" ]
+}
+start_post() {
+    # Kernel/boot diagnostics stay on tty4; the installed text login selects tty1.
+    [ "$port" != tty1 ] || /usr/bin/chvt 1
 }

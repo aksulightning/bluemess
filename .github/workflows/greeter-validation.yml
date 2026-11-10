@@ -1,0 +1,47 @@
+name: Verify login-manager choices
+on:
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'manifests/**'
+      - 'config/**'
+      - 'build/**'
+      - 'vm/**'
+      - 'tests/**'
+      - '.github/workflows/greeter-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: greeter-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  greeters:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Build the pinned test environment
+        run: |
+          source build/inputs.env
+          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile .
+      - name: Static and lifecycle tests under BusyBox ash
+        run: docker run --rm -v "$PWD:/src" bme-builder build/check.sh
+      - name: Build the candidate installer
+        run: docker run --rm --privileged -e VERSION=0.1.0-greeter-test -e SOURCE_COMMIT="$GITHUB_SHA" -v "$PWD:/src" bme-builder build/build.sh
+      - name: Offline installation and real greeter login matrix
+        run: |
+          docker run --rm --privileged -v "$PWD:/src" bme-builder -c 'python3 vm/verify.py --greeters-only --iso out/blue-mess-edition-0.1.0-greeter-test-amd64.iso --output out/greeter-verification'
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: greeter-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/logs/
+            out/greeter-verification/*.*
+            out/*packages.tsv
+          retention-days: 14
+          if-no-files-found: warn

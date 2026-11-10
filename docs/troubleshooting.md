@@ -29,6 +29,51 @@ been established. Installer observations are reported separately by VM tooling.
 
 ## Local login and seat access
 
+### Switching login managers
+
+`sudo bluemess-greeter-switcher` offers tuigreet (default), agetty and SDDM.
+The equivalent arguments are `tuigreet`, `agetty` and `sddm`; `status` reports
+both the next-boot selection and running services. Reboot when ready to apply
+the selection. The tool does not restart services during an active session.
+
+The saved choice is `/etc/blue-mess/greeter`, read as plain text. The switcher
+updates only the three managed login-service runlevel entries and
+`/etc/X11/default-display-manager`, preserving tty2/tty3/serial recovery.
+It validates prerequisites first, excludes concurrent invocations, and rolls
+back configuration and links if a write fails. The native service guards
+reject an unselected or competing manager, including package-triggered starts.
+The live installer always retains agetty. Package reconfiguration preserves
+the installed system's selected manager instead of restoring tuigreet.
+
+SDDM uses `/etc/sddm.conf.d/90-blue-mess.conf`, the embedded theme, Debian
+`/etc/pam.d/sddm` and `/etc/pam.d/sddm-greeter`, and Debian's Xsession wrapper.
+The only offered session is Blue Mess. SDDM's modern VT allocation replaces
+the obsolete MinimumVT option; inspect `loginctl` for the current display VT.
+The desktop session checker accepts a matching local SDDM X11 VT on seat0.
+OpenRC owns the daemon and power commands. Systemd PID 1 and Plasma are not
+installed. Existing local `/etc/sddm.conf` settings have higher precedence;
+inspect them if the displayed behavior differs from the packaged defaults.
+
+For a failed graphical login, use tty2/tty3 and check `rc-service sddm status`,
+tty4 daemon diagnostics, `/var/log/rc.log`, `/var/log/Xorg.*.log`,
+`~/.local/share/sddm/xorg-session.log` and
+`~/.local/state/blue-mess/desktop.log`. Debian SDDM is built with journald;
+the native service directs daemon stderr to tty4 so daemon diagnostics use
+its console fallback without installing a journal service. PAM diagnostics
+remain in system logs. Do not assume an absent journal means SDDM is healthy.
+
+To recover, run `sudo bluemess-greeter-switcher tuigreet` or select `agetty`,
+then reboot. Never manually start a second login manager alongside the first.
+If configuration is interrupted, run the switcher again from a recovery login.
+An abandoned switcher lock under `/run/lock` disappears at reboot.
+
+The focused runtime suite is `python3 vm/verify.py --greeters-only --iso ISO
+--output out/greeter-verification` inside the documented privileged builder.
+It installs to a disposable QEMU disk and tests all three choices, graphical
+password authentication, full desktop/audio startup, repeated logout/login,
+reboot persistence and upgrade preservation. Its `greeter-results.json` is
+separate from the full release and three-boot RAM acceptance report.
+
 Sign in at tuigreet as your ordinary user on the machine's tty1, then run
 `bluemess-desktop start` from that login. Run `bluemess-session-check`
 from tty1 or an Openbox terminal to inspect that process's session.
@@ -39,6 +84,57 @@ If tty1 has no greeter, use tty2, tty3 or the serial console to log in and check
 authentication. When upgrading an earlier installation, install `greetd`
 and `tuigreet` before configuring the updated `bme-config` package.
 The package switches the default runlevel to greetd for the next boot.
+
+### Greeter startup readiness and delay
+
+The native OpenRC service waits up to 15 seconds for `/dev/tty1` to be an
+accessible character device and for elogind to answer a system D-Bus ping.
+Each D-Bus call has a one-second reply timeout; an outer BusyBox timeout
+bounds the whole readiness phase. Missing programs, configuration or the
+`_greetd` account fail immediately. A competing tty1 getty also blocks startup.
+The existing udev service already settles coldplug before elogind starts;
+this additional check tests that elogind actually responds.
+
+After readiness, `/etc/conf.d/greetd` controls an additional settling delay:
+
+```sh
+greetd_start_delay=3
+```
+
+Use an integer from `0` to `30` seconds. `0` disables only the extra delay;
+the readiness check remains enabled. Empty or malformed values fail startup.
+The three-second default is a configurable timing workaround, not proof that
+a GPU/console rendering problem is fixed. There is no requirement for a
+particular DRM card or framebuffer device.
+
+The hook runs on service start or explicit restart. Normal login/logout and
+OpenRC crash respawns do not repeat it. Existing supervision still waits two
+seconds between daemon respawns and limits them to five within 60 seconds.
+There is no recurring greeter health check that could mistake an authenticated
+shell or desktop for a missing tuigreet process.
+
+On failure, inspect `/var/log/rc.log` for the readiness reason and
+`/var/log/messages` for daemon output. A readiness timeout leaves greetd
+unstarted; after correcting tty1, D-Bus or elogind, run from tty2 or tty3:
+
+```sh
+sudo rc-service greetd start
+```
+
+To apply a delay change to an already running service, log out of the tty1
+desktop **and its login shell** first, then use tty2 or tty3:
+
+```sh
+sudo rc-service greetd restart
+```
+
+Do not restart greetd while a tty1 user session is running. Package upgrades
+install the new hook for the next service start without restarting greetd.
+`/etc/conf.d/greetd` is a Debian conffile, so local delay settings are preserved
+through the normal package configuration-file handling. This change does not
+require replacing the existing `/etc/greetd/blue-mess.toml`.
+
+### Greeter clock workaround
 
 The default tuigreet command includes a seconds clock so its normal render
 timer produces changing terminal output without a keypress. This is a display

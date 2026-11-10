@@ -8,6 +8,11 @@ dash
 login
 greetd
 tuigreet
+sddm
+qml6-module-qtquick
+qml6-module-qtqml-workerscript
+qt6-qpa-plugins
+libgl1-mesa-dri
 passwd
 util-linux
 mount

@@ -53,6 +53,7 @@ if [ "$role" = target ]; then
     chroot "$root" update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper
     test -x "$root/etc/init.d/greetd"
     ln -s /etc/init.d/greetd "$root/etc/runlevels/default/greetd"
+    chroot "$root" /usr/bin/bluemess-greeter-switcher --sync
     sed -i 's/^CriticalPowerAction=.*/CriticalPowerAction=PowerOff/' "$root/etc/UPower/UPower.conf"
 fi
 # /bin/sh and /bin/bash must remain real Debian interpreter choices.

@@ -254,8 +254,29 @@ def record(output, name, text):
     return text
 
 
+def wait_for_service(guest, service):
+    """Allow asynchronous boot to finish without accepting a failed service."""
+    phase(f'Wait for OpenRC service {service} to finish starting')
+    # Serial getty can accept a login before other default-runlevel services
+    # finish. In particular, greetd has a bounded readiness check and delay.
+    guest.run(f'''set -eu
+n=0
+until rc-service {shlex.quote(service)} status; do
+    if [ "$n" -ge 60 ]; then
+        echo {shlex.quote('Timed out waiting for OpenRC service ' + service)} >&2
+        rc-status --all || :
+        tail -n 120 /var/log/rc.log || :
+        exit 1
+    fi
+    n=$((n+1))
+    sleep 1
+done
+''', timeout=90)
+
+
 def root_state(guest, output, suffix):
     phase(f'{suffix}: assert native PID 1, service state and system configuration')
+    wait_for_service(guest, 'greetd')
     facts = guest.run('''set -eu
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
@@ -340,6 +361,9 @@ tail -n 120 /home/tester/.local/state/blue-mess/desktop.log
 printf '%s\\n' '--- Xorg log ---'
 tail -n 120 /home/tester/.local/share/xorg/Xorg.0.log
 printf '%s\\n' '--- all processes ---'
+for path in /var/log/Xorg.*.log /var/log/sddm.log /home/tester/.local/share/sddm/xorg-session.log; do
+    [ ! -r "$path" ] || { printf '%s\\n' "$path"; tail -n 100 "$path"; }
+done
 ps -eo pid,ppid,user,tty,stat,args
 ''', timeout=30, check=False)
     record(output, f'console-{suffix}-{stage}.log', facts)
@@ -354,6 +378,38 @@ until grep -aiFq {shlex.quote(prompt)} /dev/vcs1 &&
     n=$((n+1)); test "$n" -le 60 || exit 1; sleep 1
 done
 ''', timeout=90)
+
+
+def greeter_recovery(guest, output):
+    """Exercise startup and one crash only at the unused guest login prompt."""
+    phase('Verify greetd startup readiness and supervised crash recovery before login')
+    wait_for_greeter(guest, 'Username')
+    record(output, 'greeter-restart.log', guest.run('''set -eu
+! ps -t tty1 -o user= | grep -qx '[[:space:]]*tester'
+rc-service greetd restart
+rc-service greetd status
+''', timeout=45))
+    wait_for_greeter(guest, 'Username')
+    record(output, 'greeter-crash-recovery.log', guest.run('''set -eu
+supervisor=$(cat /run/bme-greetd.pid)
+daemon=$(pgrep -P "$supervisor" -x greetd)
+test "$(printf '%s\\n' "$daemon" | wc -l)" -eq 1
+kill -KILL "$daemon"
+n=0
+while :; do
+    replacement=$(pgrep -P "$supervisor" -x greetd || :)
+    if [ -n "$replacement" ] && [ "$replacement" != "$daemon" ]; then break; fi
+    n=$((n+1)); test "$n" -le 15; sleep 1
+done
+test "$(cat /run/bme-greetd.pid)" = "$supervisor"
+rc-service greetd status
+printf 'greetd recovered: %s -> %s\\n' "$daemon" "$replacement"
+''', timeout=30))
+    wait_for_greeter(guest, 'Username')
+    daemon = guest.run('pgrep -P "$(cat /run/bme-greetd.pid)" -x greetd').strip()
+    if not daemon.isdigit():
+        raise Failure('Expected exactly one supervised greetd daemon')
+    return daemon
 
 
 def desktop(guest, password, output, suffix, auto_start=False):
@@ -458,7 +514,16 @@ runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q |
 xpid=$(pgrep -u tester -x Xorg); test -n "$xpid"
 obpid=$(pgrep -u tester -x openbox); test -n "$obpid"
 tpid=$(pgrep -u tester -x xfce4-terminal); test -n "$tpid"
-child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' '); test -n "$child"
+# GTK/VTE creates the terminal process before it forks the interactive shell.
+# Wait for that child rather than treating process creation as shell readiness.
+n=0
+while :; do
+    child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' ')
+    if [ -n "$child" ] && [ -e /proc/"$child"/exe ]; then
+        case "$(readlink /proc/"$child"/exe)" in */busybox) break ;; esac
+    fi
+    n=$((n+1)); test "$n" -le 30; sleep 1
+done
 case "$(readlink /proc/"$child"/exe)" in */busybox) ;; *) exit 1;; esac
 tr '\\000' ' ' < /proc/"$child"/cmdline | grep -Eq '(^|/|-| )ash( |$)'
 tr '\\000' ' ' < /proc/"$child"/cmdline; printf '\\n'
@@ -683,6 +748,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--iso', required=True, type=Path)
     parser.add_argument('--output', type=Path, default=Path('out/verification'))
+    parser.add_argument('--greeters-only', action='store_true',
+                        help='Run the installed greeter matrix; not the release/RAM acceptance suite')
     parser.add_argument('--ovmf-code', default=code)
     parser.add_argument('--ovmf-vars', default=variables)
     args = parser.parse_args()
@@ -775,6 +842,12 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
             raise Failure('Fresh user home has unexpected visible entries: ' + layout)
         guest.root(password)
         root_state(guest, output, 'installed')
+        if args.greeters_only:
+            from greeters import verify_choices
+            result['scope'] = 'greeters-only; not release or memory acceptance'
+            verify_choices(guest, password, output, result)
+            result['status'] = 'passed'
+            return 0
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
@@ -798,12 +871,16 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         result['checks'].append('Disk-only boot, authenticated ash/sudo, home layout, UUID filesystems, DHCP/DNS, APT policy, package install/remove and upgrade plan')
         console_layout(guest, password, output)
         result['checks'].append('TTY1 selected at boot; tty2/tty3 authenticate; kernel, console and syslog probes reach tty4 without a login there')
+        greeter_pid = greeter_recovery(guest, output)
+        result['checks'].append('greetd starts through its readiness hook and OpenRC restores the greeter after a daemon crash before login')
         desktop(guest, password, output, 'verification')
         result['audio'] = [audio_playback(guest, output, 'verification', recover=True)]
         result['checks'].append('Automatic PipeWire audio, process recovery, restart and non-silent emulated HDA playback')
         result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xfce4-terminal/ash')
         window_interactions(guest, output)
         result['checks'].append('Actual XTEST titlebar drag moves the xfce4-terminal window and Alt+F8 keyboard resizing changes its width')
+        guest.run('test "$(pgrep -P "$(cat /run/bme-greetd.pid)" -x greetd)" = ' + shlex.quote(greeter_pid))
+        result['checks'].append('The same greetd daemon remains running throughout the authenticated desktop checks')
         phase('Verify desktop logout cleans up its companion processes and returns to tty1')
         record(output, 'desktop-logout.log', guest.run('''set -eu
 runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit
@@ -882,12 +959,17 @@ runuser -u tester -- bluemess-desktop auto-start true
         if guest is not None:
             with suppress(Exception):
                 guest.close()
-        (output / 'results.json').write_text(json.dumps(result, indent=2) + '\n')
+        result_file = 'greeter-results.json' if args.greeters_only else 'results.json'
+        (output / result_file).write_text(json.dumps(result, indent=2) + '\n')
         (output / 'memory.json').write_text(json.dumps({'configuration': CONFIG, 'readings': result.get('memory_readings', []), 'summary': result.get('memory')}, indent=2) + '\n')
         report = ['# Blue Mess Edition VM verification', '', f"Result: **{result['status'].upper()}**", '',
                   'Reference: amd64, 1 GiB RAM, 2 qemu64 vCPUs, pc-q35-8.2, TCG, std VGA, 1024×768.',
                   'Disk-only Openbox desktop with XFCE panel/power manager and one idle xfce4-terminal/ash; normal delivered services and working networking.', '',
                   '## Completed assertions', '']
+        if args.greeters_only:
+            report = ['# Blue Mess greeter verification', '', f"Result: **{result['status'].upper()}**", '',
+                      'Focused login-manager matrix on a freshly installed disposable QEMU disk.',
+                      'This is not a validated release or a RAM acceptance result.', '', '## Completed assertions', '']
         report += [f'- {check}' for check in result['checks']]
         report += ['', '## Desktop memory', '']
         for number, reading in enumerate(result.get('memory_readings', []), 1):

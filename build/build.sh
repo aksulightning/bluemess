@@ -49,8 +49,14 @@ bootstrap() {
     [[ ! -s out/logs/$role-helper-verify.log ]]
     grep -Eq '^[[:space:]]*session[[:space:]]+optional[[:space:]]+pam_elogind[.]so([[:space:]]|$)' "$root/etc/pam.d/common-session"
     if [[ $role == target ]]; then
-        native_services+=(greetd)
+        native_services+=(greetd sddm)
         [[ -x $root/usr/bin/tuigreet ]]
+        chroot "$root" /usr/lib/blue-mess/sddm-check
+        chroot "$root" /usr/bin/bluemess-greeter-switcher status | grep -x 'Next boot: tuigreet'
+        [[ ! -L $root/etc/runlevels/default/sddm ]]
+        [[ ! -L $root/etc/runlevels/default/bme-getty.tty1 ]]
+        grep -Eq '^[[:space:]]*@include[[:space:]]+common-session[[:space:]]*$' "$root/etc/pam.d/sddm"
+        grep -Eq '^[[:space:]]*@include[[:space:]]+common-session[[:space:]]*$' "$root/etc/pam.d/sddm-greeter"
         for program in pipewire pw-cli pw-play pipewire-pulse wireplumber wpctl pactl pavucontrol; do
             chroot "$root" /bin/sh -c 'command -v "$1"' sh "$program"
         done
@@ -74,7 +80,9 @@ bootstrap() {
     chroot "$root" /usr/bin/ash -c '
         set -eu
         for service in /usr/share/blue-mess/init.d/*; do
-            [ "$1" != installer ] || [ "${service##*/}" != greetd ] || continue
+            if [ "$1" = installer ]; then
+                case ${service##*/} in greetd|sddm) continue ;; esac
+            fi
             command=
             RC_SVCNAME=${service##*/}
             export RC_SVCNAME

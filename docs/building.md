@@ -24,6 +24,20 @@ resolution and integration changes, and pass the complete VM/benchmark suite.
 
 ## Separate ISO-only workflow (unverified)
 
+The additional `.github/workflows/greeter-validation.yml` runs static checks
+and the focused login-manager matrix for relevant pull requests. It does not
+publish an ISO or replace the archived full release/RAM validation workflow.
+To run that matrix locally after building the candidate, use:
+
+```sh
+docker run --rm --privileged -v "$PWD:/src" bme-builder -c 'python3 vm/verify.py --greeters-only --iso out/blue-mess-edition-0.1.0-dev-amd64.iso --output out/greeter-verification'
+```
+
+The verifier still creates its own disposable disk and performs the offline
+installation. Results are saved as `greeter-results.json`, with screenshots,
+serial logs and captured playback. Passing this focused matrix does not
+establish the full three-boot memory gate or make an ISO a validated release.
+
 `.github/workflows/build-iso.yml` assembles an ISO using the same pinned
 builder image and `build/build.sh` as the archived verified workflow. It deliberately
 does **not** call static checks, VM tests, or `build/validate-results.py`.

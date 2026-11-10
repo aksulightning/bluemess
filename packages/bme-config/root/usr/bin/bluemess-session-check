@@ -16,18 +16,28 @@ if [ "$user_id" -eq 0 ]; then
 fi
 
 login_runtime=
-if session=$(timeout 3 loginctl show-session self -p Id -p User -p Seat -p TTY -p Active -p Remote); then
+if session=$(timeout 3 loginctl show-session self -p Id -p User -p Seat -p TTY -p Active -p Remote -p Service -p Type -p VTNr); then
     printf '%s\n' "$session"
-    for expected in "User=$user_id" Seat=seat0 TTY=tty1 Active=yes Remote=no; do
+    for expected in "User=$user_id" Seat=seat0 Active=yes Remote=no; do
         printf '%s\n' "$session" | grep -Fxq "$expected" ||
-            problem "Expected $expected for the local tty1 session."
+            problem "Expected $expected for the local seat0 session."
     done
+    if printf '%s\n' "$session" | grep -Fxq 'Service=sddm'; then
+        # Modern SDDM allocates its own VT; MinimumVT is no longer supported.
+        vt=$(printf '%s\n' "$session" | sed -n 's/^VTNr=//p')
+        case $vt in ''|0|*[!0-9]*) problem 'SDDM did not report a local virtual terminal.' ;;
+            *) printf '%s\n' "$session" | grep -Fxq "TTY=tty$vt" || problem 'SDDM TTY and VTNr do not agree.' ;;
+        esac
+        printf '%s\n' "$session" | grep -Fxq 'Type=x11' || problem 'Expected an X11 SDDM session.'
+    else
+        printf '%s\n' "$session" | grep -Fxq 'TTY=tty1' || problem 'Expected TTY=tty1 for a console desktop login.'
+    fi
     if ! login_runtime=$(timeout 3 loginctl show-user "$user_id" -p RuntimePath --value) ||
         [ -z "$login_runtime" ]; then
         problem 'Elogind did not report a runtime directory for this user.'
     fi
 else
-    problem 'Elogind could not identify this login session. Check rc-service elogind status and the tty1 login.'
+    problem 'Elogind could not identify this login session. Check rc-service elogind status and the local login.'
 fi
 
 runtime=${XDG_RUNTIME_DIR:-}
