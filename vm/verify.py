@@ -277,6 +277,7 @@ done
 def root_state(guest, output, suffix):
     phase(f'{suffix}: assert native PID 1, service state and system configuration')
     wait_for_service(guest, 'greetd')
+    wait_for_service(guest, 'network-manager')
     facts = guest.run('''set -eu
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac

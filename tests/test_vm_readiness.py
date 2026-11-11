@@ -89,7 +89,7 @@ echo 'status: started'
         def run(command, **kwargs):
             if kwargs:
                 return run_wait(command, **kwargs)
-            self.assertEqual((self.root / 'count').read_text().strip(), '4')
+            self.assertEqual((self.root / 'count').read_text().strip(), '5')
             self.assertIn('pgrep -x "$daemon"', command)
             raise verify.Failure('missing actual daemon')
 

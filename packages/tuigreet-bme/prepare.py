@@ -6,8 +6,10 @@ version = sys.argv[1]
 control = Path('debian/control')
 text = control.read_text()
 assert text.count('Package: tuigreet\n') == 1
-text = text.replace('Package: tuigreet\n', '''Package: tuigreet-bme
-Provides: tuigreet (= 0.9.1)
+text = text.replace('Package: tuigreet\n', f'''Package: tuigreet-bme
+Built-Using: ${{cargo:Built-Using}}
+Static-Built-Using: ${{cargo:Static-Built-Using}}
+Provides: tuigreet (= {version})
 Conflicts: tuigreet
 Replaces: tuigreet
 ''')
@@ -21,6 +23,7 @@ changelog.write_text(f'''tuigreet ({version}) unstable; urgency=medium
 
   * Build tuigreet-bme with a backport of upstream 3e18bcb7b68dfe5b8491ad08d5fbcbb326849a4f.
     Start terminal events only after terminal initialization (Debian #1153617).
+  * Avoid querying the cursor again while clearing the screen at exit.
   * Provide and replace tuigreet, retaining its command, manual and cache paths.
 
  -- Blue Mess Edition contributors <bluemess@users.noreply.github.com>  Wed, 11 Nov 2026 12:00:00 +0000

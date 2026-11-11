@@ -3,6 +3,7 @@ Description: Start terminal events after terminal initialization
 Origin: backport, https://github.com/tuigreet/tuigreet/commit/3e18bcb7b68dfe5b8491ad08d5fbcbb326849a4f
 Bug-Debian: https://bugs.debian.org/1153617
 Forwarded: not-needed
+License: GPL-3.0-only (same as upstream tuigreet)
 Last-Update: 2026-11-11
 
 --- a/src/event.rs

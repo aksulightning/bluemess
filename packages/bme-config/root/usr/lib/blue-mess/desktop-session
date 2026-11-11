@@ -44,11 +44,16 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
-xdg-user-dirs-update
-xfsettingsd --no-daemon &
-children="$children $!"
-nm-applet &
-children="$children $!"
+# Existing installations may upgrade bme-config before the new target packages.
+if command -v xdg-user-dirs-update >/dev/null 2>&1; then xdg-user-dirs-update; fi
+if command -v xfsettingsd >/dev/null 2>&1; then
+    xfsettingsd --no-daemon &
+    children="$children $!"
+fi
+if command -v nm-applet >/dev/null 2>&1; then
+    nm-applet &
+    children="$children $!"
+fi
 bluemess-audio run &
 children="$children $!"
 xfce4-panel --disable-wm-check &

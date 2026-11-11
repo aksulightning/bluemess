@@ -590,7 +590,18 @@ per-user Flatpak setup and the local tuigreet-bme source build/backport.
 The Sid snapshot is unchanged. The new package and PTY regression checks are
 part of image construction and a dedicated Actions workflow.
 
-Validation: local static/lifecycle checks are recorded in the delivery update.
+Validation: local build/check.sh passed: 83 tests under BusyBox ash, shell
+syntax, ShellCheck 0.11 and XML checks. bme-config binary packaging and the
+patched tuigreet Debian source-package build also passed. The actual Rust
+binary and PTY checks run in the dedicated Actions workflow. APT resolved
+the complete target manifest from the signed snapshot with the init exclusions
+enabled (1103 packages); no systemd manager was selected.
 ISO installation, physical NVIDIA behavior, suspend and the expanded desktop's
 RAM budget remain unverified until the relevant real runs pass. No hardware or
 ISO success is claimed by the source change.
+
+First remote build (Actions 43007306598): Rust compilation and all five PTY
+startup/UI/keyboard tests passed. Artifact publication failed because the host
+runner could not write SHA256SUMS in the root-owned container output directory.
+Checksum generation now runs inside the builder. The follow-up also exercises
+session IPC and exit cleanup and preserves complete source/debug artifacts.

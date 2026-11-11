@@ -21,6 +21,8 @@ bash packages/tuigreet-bme/build.sh "$PWD/work/tuigreet-debs"
 mkdir -p out/tuigreet-bme
 cp -a work/tuigreet-debs/. out/tuigreet-bme/
 (cd out/tuigreet-bme && sha256sum ./*.deb source/* > SHA256SUMS)
+tar -cJf out/tuigreet-bme.tar.xz -C out tuigreet-bme
+(cd out && sha256sum tuigreet-bme.tar.xz > tuigreet-bme.sha256)
 
 bootstrap() {
     local role=$1 root="$PWD/work/$1" include lsb_output
@@ -60,6 +62,11 @@ bootstrap() {
     if [[ $role == target ]]; then
         native_services+=(greetd sddm network-manager)
         [[ -x $root/usr/bin/tuigreet ]]
+        for program in nmcli nmtui nm-applet xfsettingsd xdg-user-dirs-update flatpak podman; do
+            chroot "$root" /bin/sh -c 'command -v "$1"' sh "$program"
+        done
+        [[ -L $root/etc/runlevels/default/network-manager ]]
+        [[ ! -L $root/etc/runlevels/default/bme-network ]]
         chroot "$root" /usr/lib/blue-mess/sddm-check
         chroot "$root" /usr/bin/bluemess-greeter-switcher status | grep -x 'Next boot: tuigreet'
         [[ ! -L $root/etc/runlevels/default/sddm ]]

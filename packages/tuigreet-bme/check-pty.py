@@ -70,6 +70,23 @@ def trial(binary, delay):
                     assert length < 65536
                     request = json.loads(receive(length))
                     assert request == {'type': 'create_session', 'username': 'bme-pty-test'}, request
+
+                    def success():
+                        payload = json.dumps({'type': 'success'}).encode()
+                        connection.sendall(struct.pack('=I', len(payload)) + payload)
+
+                    success()
+                    length = struct.unpack('=I', receive(4))[0]
+                    assert length < 65536
+                    request = json.loads(receive(length))
+                    assert request['type'] == 'start_session', request
+                    assert request['cmd'] == ['/bin/true'], request
+                    success()
+                    # No further cursor replies: cleanup must not query stdin
+                    # while EventStream is alive (the old code waits two seconds).
+                    assert process.wait(timeout=1.5) == 0
+                    assert termios.tcgetattr(master)[3] & termios.ICANON
+
             finally:
                 if process.poll() is None:
                     process.terminate()
@@ -81,4 +98,4 @@ if __name__ == '__main__':
     binary = str(Path(sys.argv[1]).resolve())
     for delay in (0, 0.1, 0.3, 0.5, 1.0):
         trial(binary, delay)
-        print(f'PASS: cursor reply delay {delay}s, UI render and keyboard IPC', flush=True)
+        print(f'PASS: cursor reply delay {delay}s, UI, keyboard/session IPC and clean exit', flush=True)

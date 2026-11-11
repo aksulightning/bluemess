@@ -2,7 +2,7 @@
 
 The binary Debian package is `tuigreet-bme`; the command remains
 `/usr/bin/tuigreet`, so greetd configuration and the login-manager switcher
-continue to work. It Provides `tuigreet (= 0.9.1)` and Conflicts/Replaces
+continue to work. It Provides `tuigreet (= 0.9.1-6+bme1)` and Conflicts/Replaces
 `tuigreet`. Installing it explicitly through APT replaces Debian's binary;
 the two must not own the same files simultaneously. greetd itself is unchanged.
 
@@ -21,6 +21,8 @@ terminal input task moves after raw mode, Terminal::new and terminal.clear.
 This addresses the startup race described in
 [Debian #1153617](https://bugs.debian.org/1153617). It does not modify NVIDIA,
 PAM, Xorg permissions, or add retry/sleep workarounds.
+A companion local patch clears the screen directly with crossterm on exit
+instead of constructing another Terminal while the event reader is still alive.
 
 ## Build and install
 
@@ -32,9 +34,11 @@ docker run --rm -v "$PWD:/src" bme-builder packages/tuigreet-bme/build.sh /src/o
 
 The build runs Debian's build checks and a five-run PTY test of the actual
 packaged executable, including delayed cursor replies, rendered UI, and
-keyboard-to-greetd IPC with a fake server. No real credentials are used.
+keyboard/session IPC with a fake server and clean exit without another cursor query. No real credentials are used.
 The package, corresponding source, build information and checksums are saved
-in the Actions artifact. The ISO build installs it in the target only, before
+in the Actions artifact with SHA256SUMS. ISO artifacts and rolling releases
+include the same package/source directory in tuigreet-bme.tar.xz with its own
+tuigreet-bme.sha256 checksum, preserving source paths when downloaded. The ISO build installs it in the target only, before
 bme-config and greeter configuration. The source is included with published
 artifacts; upstream and Debian copyright/license files remain in the package.
 
