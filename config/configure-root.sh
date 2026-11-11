@@ -24,7 +24,9 @@ done
 for name in bme-localmount bme-boot; do
     ln -s "/etc/init.d/$name" "$root/etc/runlevels/boot/$name"
 done
-for name in dbus elogind chrony bme-network bme-syslog bme-klog; do
+network_service=bme-network
+[ "$role" != target ] || network_service=network-manager
+for name in dbus elogind chrony "$network_service" bme-syslog bme-klog; do
     ln -s "/etc/init.d/$name" "$root/etc/runlevels/default/$name"
 done
 ln -s /etc/init.d/bme-mount-ro "$root/etc/runlevels/shutdown/bme-mount-ro"

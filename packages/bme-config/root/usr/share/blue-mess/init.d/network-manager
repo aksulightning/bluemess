@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+description="NetworkManager wired and wireless connections"
+command=/usr/sbin/NetworkManager
+command_args="--no-daemon"
+supervisor=supervise-daemon
+pidfile=/run/bme-network-manager.pid
+output_logger="exec /usr/bin/busybox logger -t NetworkManager"
+error_logger="exec /usr/bin/busybox logger -t NetworkManager"
+depend() { need bme-boot bme-syslog dbus udev; provide net; before chrony; }
+start_pre() {
+    if rc-service bme-network status >/dev/null 2>&1; then
+        eerror 'bme-network still owns the interfaces; reboot after selecting NetworkManager.'
+        return 1
+    fi
+    for link in /etc/runlevels/*/bme-network; do
+        if [ -L "$link" ]; then
+            eerror 'Remove the competing bme-network runlevel entry before starting NetworkManager.'
+            return 1
+        fi
+    done
+}

@@ -581,3 +581,16 @@
   (270, 219) to (318, 243). The keyboard resize probe sent only one arrow;
   upstream Openbox resize_with_keys uses that first arrow to select an edge,
   so the probe now sends a second arrow before confirming the changed width.
+
+
+## 2026-11-11: script functionality and tuigreet-bme
+
+Added desktop tools, NetworkManager ownership, dark-theme/settings support,
+per-user Flatpak setup and the local tuigreet-bme source build/backport.
+The Sid snapshot is unchanged. The new package and PTY regression checks are
+part of image construction and a dedicated Actions workflow.
+
+Validation: local static/lifecycle checks are recorded in the delivery update.
+ISO installation, physical NVIDIA behavior, suspend and the expanded desktop's
+RAM budget remain unverified until the relevant real runs pass. No hardware or
+ISO success is claimed by the source change.

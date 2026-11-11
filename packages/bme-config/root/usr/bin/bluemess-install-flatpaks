@@ -1,0 +1,11 @@
+#!/usr/bin/ash
+# Explicit, per-user online setup. Never run during an offline ISO installation.
+set -eu
+[ "$(id -u)" -ne 0 ] || { echo 'Run as your desktop user, without sudo.' >&2; exit 1; }
+[ "$#" -eq 0 ] || { echo 'Usage: bluemess-install-flatpaks' >&2; exit 2; }
+command -v flatpak >/dev/null
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+# Keep Flatpak's confirmation prompt; downloading apps requires a connection.
+flatpak install --user flathub org.mozilla.firefox org.luanti.luanti \
+    org.bluesabre.MenuLibre com.valvesoftware.Steam org.gtk.Gtk3theme.Adwaita-dark
+echo 'Applications are installed for this user. Log out and back in if the menu has not refreshed.'

@@ -1,5 +1,17 @@
 # Blue Mess Edition
 
+## Desktop applications and corrected tuigreet
+
+Images now build `tuigreet-bme` from the pinned Debian source with the upstream
+terminal-startup fix. The executable is still `tuigreet`; greetd remains the
+default. See [package build, tests and rollback](docs/tuigreet-bme.md).
+
+New installations use NetworkManager with a tray applet and nmtui. The desktop
+includes the native tools from the original Alpine scripts. Run
+`bluemess-install-flatpaks` as your ordinary user to add their Flatpak apps
+online. See [script coverage and existing-system migration](docs/script-parity.md).
+These additions require fresh VM/hardware and memory validation.
+
 ## Login-manager choices
 
 Run `sudo bluemess-greeter-switcher` for a three-option menu, or select directly:

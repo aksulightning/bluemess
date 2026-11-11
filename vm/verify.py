@@ -281,7 +281,7 @@ def root_state(guest, output, suffix):
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 rc-status --all
-for service in bme-root udev bme-localmount bme-boot bme-network bme-syslog bme-klog dbus elogind chrony greetd bme-getty.tty2 bme-getty.tty3 bme-getty.ttyS0; do rc-service "$service" status; done
+for service in bme-root udev bme-localmount bme-boot network-manager bme-syslog bme-klog dbus elogind chrony greetd bme-getty.tty2 bme-getty.tty3 bme-getty.ttyS0; do rc-service "$service" status; done
 test "$(readlink /etc/runlevels/default/greetd)" = /etc/init.d/greetd
 test ! -L /etc/runlevels/default/bme-getty.tty1
 test ! -L /etc/runlevels/default/bme-getty.tty4
@@ -289,7 +289,7 @@ grep -qw console=tty4 /proc/cmdline
 ! grep -qw console=tty0 /proc/cmdline
 # State markers alone are insufficient: assert the actual daemon processes.
 ps -eo pid,ppid,user,args
-for daemon in dbus-daemon elogind chronyd greetd; do
+for daemon in dbus-daemon elogind chronyd greetd NetworkManager; do
     pids=$(pgrep -x "$daemon") || { echo "Missing running daemon: $daemon" >&2; exit 1; }
     for pid in $pids; do readlink /proc/"$pid"/exe; done
 done
@@ -851,7 +851,7 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
-for p in htop nano fastfetch xterm xfce4-terminal less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+for p in htop nano fastfetch xterm xfce4-terminal less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet-bme network-manager network-manager-applet network-manager-tui flatpak podman xfce4-settings xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
 apt-config dump | grep '^APT::Install-Recommends "false";'
 apt-config dump | grep '^APT::Install-Suggests "false";'
 dpkg --audit

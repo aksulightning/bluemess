@@ -37,9 +37,13 @@ class ConsoleLayout(unittest.TestCase):
                 if role == 'installer':
                     expected.add('bme-getty.tty1')
                     self.assertIn('bme-console', links)
+                    self.assertIn('bme-network', links)
+                    self.assertNotIn('network-manager', links)
                     self.assertNotIn('greetd', links)
                 else:
                     self.assertIn('greetd', links)
+                    self.assertIn('network-manager', links)
+                    self.assertNotIn('bme-network', links)
                 self.assertEqual({p for p in links if p.startswith('bme-getty.')}, expected)
                 self.assertFalse((root / 'etc/init.d/bme-getty.tty4').exists())
 

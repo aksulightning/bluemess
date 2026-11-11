@@ -1,0 +1,8 @@
+### BEGIN INIT INFO
+# Provides:          network-manager
+# Required-Start:    $local_fs $syslog dbus udev
+# Required-Stop:     $local_fs $syslog dbus udev
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Blue Mess native NetworkManager owner
+### END INIT INFO
