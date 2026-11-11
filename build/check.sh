@@ -15,6 +15,9 @@ shellcheck -s ash -e SC1091 installer/bme-install installer/lib/install.sh
 
 # The desktop entry points are shipped without a .sh extension.
 for script in \
+    packages/bme-config/root/usr/bin/bluemess-install-flatpaks \
+    packages/bme-config/root/usr/share/blue-mess/init.d/network-manager \
+    packages/bme-config/root/usr/share/blue-mess/init.d/bme-network \
     packages/bme-config/root/usr/bin/bluemess-desktop \
     packages/bme-config/root/usr/bin/bluemess-prepare-gpu-install \
     packages/bme-config/root/usr/bin/bluemess-audio \
@@ -43,3 +46,6 @@ import xml.etree.ElementTree as ET
 for path in Path('packages/bme-config/root/usr/share/blue-mess/skel/.config').rglob('*.xml'):
     ET.parse(path)
 XML
+
+shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-install-flatpaks
+shellcheck -s bash packages/tuigreet-bme/build.sh -e SC1091

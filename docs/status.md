@@ -581,3 +581,43 @@
   (270, 219) to (318, 243). The keyboard resize probe sent only one arrow;
   upstream Openbox resize_with_keys uses that first arrow to select an edge,
   so the probe now sends a second arrow before confirming the changed width.
+
+
+## 2026-11-11: script functionality and tuigreet-bme
+
+Added desktop tools, NetworkManager ownership, dark-theme/settings support,
+per-user Flatpak setup and the local tuigreet-bme source build/backport.
+The Sid snapshot is unchanged. The new package and PTY regression checks are
+part of image construction and a dedicated Actions workflow.
+
+Validation: local build/check.sh passed: 83 tests under BusyBox ash, shell
+syntax, ShellCheck 0.11 and XML checks. bme-config binary packaging and the
+patched tuigreet Debian source-package build also passed. The actual Rust
+binary and PTY checks run in the dedicated Actions workflow. APT resolved
+the complete target manifest from the signed snapshot with the init exclusions
+enabled (1103 packages); no systemd manager was selected.
+ISO installation, physical NVIDIA behavior, suspend and the expanded desktop's
+RAM budget remain unverified until the relevant real runs pass. No hardware or
+ISO success is claimed by the source change.
+
+First remote build (Actions 43007306598): Rust compilation and all five PTY
+startup/UI/keyboard tests passed. Artifact publication failed because the host
+runner could not write SHA256SUMS in the root-owned container output directory.
+Checksum generation now runs inside the builder. The follow-up also exercises
+session IPC and exit cleanup and preserves complete source/debug artifacts.
+
+Final package validation: [Actions run 43009273334](https://github.com/aksulightning/bluemess/actions/runs/43009273334)
+passed for package source commit 9c5f3da5e67e10da916bc32a83c92ed781834cbb.
+The build produced tuigreet-bme 0.9.1-6+bme1 (amd64), the debug package and
+corresponding Debian source/build records. All five PTY trials (cursor reply
+delays 0, 0.1, 0.3, 0.5 and 1 second) passed UI rendering, keyboard/session IPC,
+clean exit and terminal-mode restoration. Artifact upload succeeded.
+
+The final Flatpak Downloads permissions and ash power aliases were checked
+locally with the full 83-test build/check.sh suite, ShellCheck, shell/XML checks
+and a fresh bme-config package build. The package source tested above is unchanged.
+
+Remaining acceptance work: boot/install the expanded ISO, test NetworkManager
+and applications on the installed target, rerun the existing memory benchmark,
+and verify cold boots and login/logout on physical NVIDIA hardware. The ISO
+build workflow remains explicitly UNTESTED; package checks do not change that.

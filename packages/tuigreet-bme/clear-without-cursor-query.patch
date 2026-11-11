@@ -1,0 +1,37 @@
+Description: Clear the screen without a concurrent cursor query during exit
+ The startup backport leaves the event reader running during cleanup. Avoid
+ constructing another Terminal while it is consuming input.
+Author: Blue Mess Edition contributors
+Forwarded: no
+License: GPL-3.0-only (same as upstream tuigreet)
+Last-Update: 2026-11-11
+
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -15,8 +15,9 @@
+ use std::{error::Error, fs::OpenOptions, io, process, sync::Arc};
+ 
+ use crossterm::{
++  cursor::Hide,
+   execute,
+-  terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
++  terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+ };
+ use event::Event;
+ use greetd_ipc::Request;
+@@ -146,12 +147,9 @@
+ }
+ 
+ pub fn clear_screen() {
+-  let backend = CrosstermBackend::new(io::stdout());
+-
+-  if let Ok(mut terminal) = Terminal::new(backend) {
+-    let _ = terminal.hide_cursor();
+-    let _ = terminal.clear();
+-  }
++  // The event reader is still alive during cleanup. Avoid Terminal::new,
++  // which may query stdin for the cursor position and race that reader.
++  let _ = execute!(io::stdout(), Hide, Clear(ClearType::All));
+ }
+ 
+ fn init_logger(greeter: &Greeter) -> Option<WorkerGuard> {

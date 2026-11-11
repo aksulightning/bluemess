@@ -1,22 +1,24 @@
 #!/usr/bin/ash
 # Openbox and its desktop companions share one private session bus.
 set -eu
+export XDG_CURRENT_DESKTOP=Openbox
+export XDG_SESSION_DESKTOP=bluemess
+export DESKTOP_SESSION=bluemess
 if [ "${1:-}" != --session-bus ]; then
+    # Standard exports; never copy or rewrite individual Flatpak launchers.
+    export XDG_DATA_DIRS="${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share:/var/lib/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
     state=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess
     mkdir -p "$state"
     exec > "$state/desktop.log" 2>&1
     exec dbus-run-session -- "$0" --session-bus
 fi
-export XDG_CURRENT_DESKTOP=Openbox
-export XDG_SESSION_DESKTOP=bluemess
-export DESKTOP_SESSION=bluemess
 # Keep diagnostics available even when a desktop starts with session problems.
 bluemess-session-check || :
 config_home=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CONFIG_HOME="$config_home"
 # Seed only missing XFCE files, including for users of an earlier alpha.
 source=/usr/share/blue-mess/skel/.config/xfce4
-for relative in helpers.rc xfconf/xfce-perchannel-xml/xfce4-panel.xml xfconf/xfce-perchannel-xml/xfce4-power-manager.xml xfconf/xfce-perchannel-xml/xfce4-terminal.xml panel/launcher-1/terminal.desktop; do
+for relative in helpers.rc xfconf/xfce-perchannel-xml/xsettings.xml xfconf/xfce-perchannel-xml/xfce4-panel.xml xfconf/xfce-perchannel-xml/xfce4-power-manager.xml xfconf/xfce-perchannel-xml/xfce4-terminal.xml panel/launcher-1/terminal.desktop; do
     # Let Terminal migrate an existing legacy configuration into Xfconf.
     if [ "$relative" = xfconf/xfce-perchannel-xml/xfce4-terminal.xml ] &&
         { [ -e "$config_home/xfce4/terminal/terminalrc" ] || [ -e "$config_home/Terminal/terminalrc" ]; }; then
@@ -42,6 +44,16 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
+# Existing installations may upgrade bme-config before the new target packages.
+if command -v xdg-user-dirs-update >/dev/null 2>&1; then xdg-user-dirs-update; fi
+if command -v xfsettingsd >/dev/null 2>&1; then
+    xfsettingsd --no-daemon &
+    children="$children $!"
+fi
+if command -v nm-applet >/dev/null 2>&1; then
+    nm-applet &
+    children="$children $!"
+fi
 bluemess-audio run &
 children="$children $!"
 xfce4-panel --disable-wm-check &

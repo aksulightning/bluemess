@@ -17,6 +17,12 @@ date -u '+Build time: %Y-%m-%dT%H:%M:%SZ' >> out/build-metadata.txt
 dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' > out/build-tools.tsv
 cp work/sources.list out/repositories.list
 bash packages/build.sh "$PWD/work/debs" "$VERSION"
+bash packages/tuigreet-bme/build.sh "$PWD/work/tuigreet-debs"
+mkdir -p out/tuigreet-bme
+cp -a work/tuigreet-debs/. out/tuigreet-bme/
+(cd out/tuigreet-bme && sha256sum ./*.deb source/* > SHA256SUMS)
+tar -cJf out/tuigreet-bme.tar.xz -C out tuigreet-bme
+(cd out && sha256sum tuigreet-bme.tar.xz > tuigreet-bme.sha256)
 
 bootstrap() {
     local role=$1 root="$PWD/work/$1" include lsb_output
@@ -33,6 +39,11 @@ bootstrap() {
     # Avoid service starts while assembling the root. This is removed before delivery.
     printf '#!/bin/sh\nexit 101\n' > "$root/usr/sbin/policy-rc.d"
     chmod 755 "$root/usr/sbin/policy-rc.d"
+    if [[ $role == target ]]; then
+        cp work/tuigreet-debs/tuigreet-bme_*.deb "$root/tmp/"
+        chroot "$root" /bin/sh -c 'dpkg -i /tmp/tuigreet-bme_*.deb'
+        chroot "$root" dpkg-query -W -f='${Status}\n' tuigreet-bme | grep -x 'install ok installed'
+    fi
     cp work/debs/*.deb "$root/tmp/"
     chroot "$root" /bin/sh -c 'dpkg -i /tmp/bme-*.deb'
     bash config/configure-root.sh "$root" "$role"
@@ -49,8 +60,13 @@ bootstrap() {
     [[ ! -s out/logs/$role-helper-verify.log ]]
     grep -Eq '^[[:space:]]*session[[:space:]]+optional[[:space:]]+pam_elogind[.]so([[:space:]]|$)' "$root/etc/pam.d/common-session"
     if [[ $role == target ]]; then
-        native_services+=(greetd sddm)
+        native_services+=(greetd sddm network-manager)
         [[ -x $root/usr/bin/tuigreet ]]
+        for program in nmcli nmtui nm-applet xfsettingsd xdg-user-dirs-update flatpak podman; do
+            chroot "$root" /bin/sh -c 'command -v "$1"' sh "$program"
+        done
+        [[ -L $root/etc/runlevels/default/network-manager ]]
+        [[ ! -L $root/etc/runlevels/default/bme-network ]]
         chroot "$root" /usr/lib/blue-mess/sddm-check
         chroot "$root" /usr/bin/bluemess-greeter-switcher status | grep -x 'Next boot: tuigreet'
         [[ ! -L $root/etc/runlevels/default/sddm ]]
@@ -81,7 +97,7 @@ bootstrap() {
         set -eu
         for service in /usr/share/blue-mess/init.d/*; do
             if [ "$1" = installer ]; then
-                case ${service##*/} in greetd|sddm) continue ;; esac
+                case ${service##*/} in greetd|sddm|network-manager) continue ;; esac
             fi
             command=
             RC_SVCNAME=${service##*/}

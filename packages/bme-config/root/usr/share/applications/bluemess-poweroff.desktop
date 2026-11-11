@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Power off
+Name[fi]=Sammuta
+Exec=loginctl poweroff
+Icon=system-shutdown
+Terminal=false
+Categories=System;

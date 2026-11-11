@@ -6,6 +6,18 @@ output_logger="exec /usr/bin/busybox logger -t bme-network"
 error_logger="exec /usr/bin/busybox logger -t bme-network"
 pidfile=/run/bme-network.pid
 depend() { need bme-boot bme-syslog; before chrony; }
+start_pre() {
+    if rc-service network-manager status >/dev/null 2>&1; then
+        eerror 'NetworkManager already owns the interfaces.'
+        return 1
+    fi
+    for link in /etc/runlevels/*/network-manager; do
+        if [ -L "$link" ]; then
+            eerror 'NetworkManager is selected; remove its runlevel entry first.'
+            return 1
+        fi
+    done
+}
 stop_post() {
     [ ! -f /run/bme-network.interface ] || {
         iface=$(cat /run/bme-network.interface)

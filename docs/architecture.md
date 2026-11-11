@@ -20,7 +20,7 @@ Sources:
 | sysinit | bme-root, udev | Writable root and kernel filesystems; device discovery and coldplug |
 | boot | bme-localmount, bme-boot | Non-root fsck, fstab mounts, hostname, modules, sysctls, UTC hardware clock, random seed, machine identifiers, console and ALSA restore |
 | default | dbus, elogind | System bus, ordinary-user PAM login, seats and device access |
-| default | bme-network, chrony | One configured DHCP connection, DNS and time synchronization |
+| default | network-manager (target), bme-network (installer), chrony | One network owner and time synchronization |
 | default | bme-syslog, bme-klog | Rotating system log and kernel messages |
 | default, when selected | greetd | Default installed-system tty1 login through tuigreet and Debian PAM |
 | default, when selected | sddm | Embedded graphical greeter and complete Blue Mess X11 session |
@@ -51,11 +51,10 @@ The kernel udev daemon may have `systemd` in its filename. That is permitted: it
 
 ## Networking, firmware and audio
 
-`bme-network` selects the first physical wired interface by default and runs one BusyBox udhcpc client. The DHCP callback configures its IPv4 address, default route and `/etc/resolv.conf`. The resolver file belongs to this connection and no competing resolver daemon is enabled. With no suitable device the service waits without repeatedly spawning failed clients. DHCP remains active for lease renewal. NetworkManager, ifupdown and a second DHCP client are unnecessary.
-
-For Wi-Fi, create `/etc/blue-mess/network.conf` with `mode=wifi` and `interface=wlan0` (use the actual name from `ip link`). Create a mode-0600 `/etc/wpa_supplicant/bme.conf` with a `network={...}` block produced by `wpa_passphrase`, removing its commented plaintext password line. Restart `bme-network` with `rc-service bme-network restart`. Only Wi-Fi mode starts wpa_supplicant. `iw` supplies diagnostics. Intel and Realtek firmware are selected explicitly; hardware outside the included firmware coverage may need additional Sid firmware. Only one connection is managed in this first version.
-
-ALSA uses kernel sound drivers, UCM profiles and packaged Intel/SOF firmware. `alsactl` restores saved mixer levels, initializes defaults when no saved state is usable, and saves levels at shutdown. The desktop launches one `bluemess-audio run` supervisor on its session D-Bus. It starts PipeWire, waits for the core, then starts WirePlumber and pipewire-pulse. A per-user runtime lock prevents duplicates, process failures trigger at most three recovery attempts, and desktop logout cleans up the stack. No root audio daemon or systemd user manager is required. ALSA and PulseAudio applications connect through the PipeWire compatibility packages. Output selection and volume remain user preferences. chrony performs normal network synchronization and retains its own drift state. BusyBox syslogd rotates `/var/log/messages` at 256 KiB with two backups. OpenRC keeps `/var/log/rc.log`. Both boot paths select `console=tty4` as the final console argument, so kernel/init output stays on tty4 after switching to tty1. BusyBox syslog additionally mirrors userspace messages to tty4; kernel messages are already there. TTY4 has no getty. The console selections provide login on tty1, tty2 and tty3; SDDM uses its allocated graphical VT alongside tty2 and tty3. The serial recovery console is separate from the F-key layout.
+New targets use a native OpenRC `network-manager` service, with internal DHCP,
+normal polkit authorization and nm-applet. The minimal installer retains the
+BusyBox bme-network service. Each owner rejects a running or enabled competitor.
+See [network migration and script coverage](script-parity.md).
 
 ## Session and desktop
 

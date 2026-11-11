@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Log out of Openbox
+Name[fi]=Kirjaudu ulos Openboxista
+Exec=openbox --exit
+Icon=system-log-out
+Terminal=false
+Categories=System;
+OnlyShowIn=Openbox;

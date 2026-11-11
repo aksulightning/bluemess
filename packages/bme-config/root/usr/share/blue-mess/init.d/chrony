@@ -8,5 +8,5 @@ supervisor=supervise-daemon
 output_logger="exec /usr/bin/busybox logger -t chrony"
 error_logger="exec /usr/bin/busybox logger -t chrony"
 pidfile=/run/bme-chrony.pid
-depend() { need bme-boot bme-syslog; use bme-network; }
+depend() { need bme-boot bme-syslog; use bme-network network-manager; }
 start_pre() { mkdir -p /run/chrony; chown _chrony:_chrony /run/chrony; }

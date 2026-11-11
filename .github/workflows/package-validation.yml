@@ -1,0 +1,34 @@
+name: Build and check tuigreet-bme
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: package-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Build pinned environment
+        run: |
+          source build/inputs.env
+          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" --build-arg TUIGREET_SOURCE_VERSION="$TUIGREET_SOURCE_VERSION" -t bme-builder -f build/Dockerfile .
+      - name: Static and lifecycle checks
+        run: docker run --rm -v "$PWD:/src" bme-builder build/check.sh
+      - name: Build Debian package and exercise terminal startup
+        run: |
+          docker run --rm -v "$PWD:/src" bme-builder packages/tuigreet-bme/build.sh /src/out/tuigreet-bme
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: tuigreet-bme-${{ github.sha }}
+          path: out/tuigreet-bme/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,44 @@
+Description: Start terminal events after terminal initialization
+ Backport of upstream 3e18bcb to the snapshot 0.9.1 source.
+Origin: backport, https://github.com/tuigreet/tuigreet/commit/3e18bcb7b68dfe5b8491ad08d5fbcbb326849a4f
+Bug-Debian: https://bugs.debian.org/1153617
+Forwarded: not-needed
+License: GPL-3.0-only (same as upstream tuigreet)
+Last-Update: 2026-11-11
+
+--- a/src/event.rs
++++ b/src/event.rs
+@@ -27,8 +27,13 @@
+   pub async fn new() -> Events {
+     let (tx, rx) = mpsc::channel(10);
+ 
++    Events { rx, tx }
++  }
++
++  // Terminal initialization may query stdin. Do not read events concurrently.
++  pub fn start(&self) {
+     tokio::task::spawn({
+-      let tx = tx.clone();
++      let tx = self.tx.clone();
+ 
+       async move {
+         let mut stream = EventStream::new();
+@@ -51,8 +56,6 @@
+         }
+       }
+     });
+-
+-    Events { rx, tx }
+   }
+ 
+   pub async fn next(&mut self) -> Option<Event> {
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -57,6 +57,7 @@
+   let mut terminal = Terminal::new(backend)?;
+ 
+   terminal.clear()?;
++  events.start();
+ 
+   let ipc = Ipc::new();
+ 

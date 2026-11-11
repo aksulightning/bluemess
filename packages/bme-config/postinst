@@ -22,6 +22,7 @@ configure)
         services="$services greetd"
     fi
     if [ -x /usr/bin/sddm ]; then services="$services sddm"; fi
+    if [ -x /usr/sbin/NetworkManager ]; then services="$services network-manager"; fi
     for name in $services; do
         destination="/usr/share/blue-mess/vendor-init/$name"
         if ! dpkg-divert --listpackage "/etc/init.d/$name" | grep '^bme-config$' >/dev/null; then
