@@ -1,10 +1,15 @@
 """Retain Debian's packaging and change only the binary identity and version."""
 from pathlib import Path
 import sys
+import re
 
 version = sys.argv[1]
 control = Path('debian/control')
 text = control.read_text()
+text, count = re.subn(r'^Maintainer: (.+)$',
+    r'Maintainer: Blue Mess Edition contributors <bluemess@users.noreply.github.com>\nXSBC-Original-Maintainer: \1',
+    text, flags=re.MULTILINE)
+assert count == 1
 assert text.count('Package: tuigreet\n') == 1
 text = text.replace('Package: tuigreet\n', f'''Package: tuigreet-bme
 Built-Using: ${{cargo:Built-Using}}
