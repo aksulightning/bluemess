@@ -1,4 +1,6 @@
 #!/sbin/openrc-run
+# OpenRC reads this variable after loading the service.
+# shellcheck disable=SC2034
 description="Run configured system and ordinary-user commands once per boot"
 depend() {
     need bme-boot

@@ -32,25 +32,27 @@ state_file() {
     [ ! -L "$1" ] && { [ ! -e "$1" ] || [ -f "$1" ]; }
 }
 
+abort_job() {
+    trap - HUP INT TERM
+    if [ -n "$job_pid" ]; then
+        kill -TERM "$job_pid" 2>/dev/null || :
+        wait "$job_pid" 2>/dev/null || :
+    fi
+    exit 143
+}
+
 # run_directory starts this function in a child, isolating its lock and state.
 directory() {
     job_pid=
-    abort_job() {
-        trap - HUP INT TERM
-        if [ -n "$job_pid" ]; then
-            kill -TERM "$job_pid" 2>/dev/null || :
-            wait "$job_pid" 2>/dev/null || :
-        fi
-        exit 143
-    }
-    trap abort_job HUP INT TERM
+    trap 'abort_job' HUP INT TERM
     jobs=$1
     state=$2
     scope=$3
     [ -d "$jobs" ] || { printf '%s: no scripts\n' "$scope"; exit 0; }
     if [ "$uid" = 0 ]; then
-        root_owned /etc/blue-mess && root_owned "$jobs" ||
+        if ! root_owned /etc/blue-mess || ! root_owned "$jobs"; then
             fail "Unsafe root script directory: $jobs"
+        fi
     fi
     if [ "$action" != status ]; then
         [ ! -L "$state" ] || fail "State directory is a symlink: $state"
@@ -80,7 +82,7 @@ directory() {
         for file in "$record" "$log" "$log.old"; do
             state_file "$file" || fail "Expected a regular state/log file: $file"
         done
-        previous_boot= previous_status= previous_code=
+        previous_boot='' previous_status='' previous_code=''
         if [ -f "$record" ]; then
             read -r previous_boot previous_status previous_code < "$record" || :
         fi
@@ -134,7 +136,9 @@ run_directory() {
 users() (
     list=/etc/blue-mess/autostart-users
     [ -e "$list" ] || [ -L "$list" ] || exit 0
-    [ -f "$list" ] && root_owned /etc/blue-mess && root_owned "$list" || fail "Unsafe user list: $list"
+    if [ ! -f "$list" ] || ! root_owned /etc/blue-mess || ! root_owned "$list"; then
+        fail "Unsafe user list: $list"
+    fi
     result=0
     while IFS= read -r user || [ -n "$user" ]; do
         case "$user" in ''|'#'*) continue ;; esac
