@@ -161,6 +161,26 @@ if [ "$2" = %u ]; then echo "${FAKE_UID:-1000}"; else exec /usr/bin/stat "$@"; f
         for value in ['0', '-1', '001', '301', 'x', '9999999999999999999999']:
             self.assertNotEqual(self.command('boot', BME_AUTOSTART_TIMEOUT=value).returncode, 0)
 
+    def test_special_state_files_are_rejected_without_blocking_or_following_symlinks(self):
+        self.job()
+        state = self.home / '.local/state/blue-mess/autostart/boot'
+        state.mkdir(parents=True)
+        target = self.home / 'untouched'
+        target.write_text('keep\n')
+        for name in ('lock', '10-test.sh.state', '10-test.sh.log', '10-test.sh.log.old'):
+            for kind in ('fifo', 'symlink'):
+                with self.subTest(name=name, kind=kind):
+                    path = state / name
+                    path.unlink(missing_ok=True)
+                    if kind == 'fifo':
+                        os.mkfifo(path)
+                    else:
+                        path.symlink_to(target)
+                    self.assertNotEqual(self.command('boot').returncode, 0)
+                    self.assertFalse((self.home / 'trace').exists())
+                    self.assertEqual(target.read_text(), 'keep\n')
+                    path.unlink()
+
     def test_root_scripts_require_safe_ownership_mode_and_no_symlink(self):
         jobs = self.root / 'etc/blue-mess/autostart.d'
         jobs.mkdir(parents=True)

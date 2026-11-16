@@ -111,7 +111,8 @@ Use a dedicated service when restart or stop management is required. Stopping
 bluemess-autostart status             # this user's boot and desktop jobs
 sudo bluemess-autostart status        # root jobs and configured users' jobs
 sudo rc-service bme-autostart status  # OpenRC wrapper state
-sudo rc-service bme-autostart start   # attempt jobs not yet attempted this boot
+sudo rc-service bme-autostart start   # start the wrapper if it is stopped
+sudo bluemess-autostart boot          # attempt jobs not yet attempted this boot
 bluemess-autostart boot --force       # explicitly retry all your boot jobs
 bluemess-autostart desktop --force    # retry desktop jobs from inside the desktop
 sudo bluemess-autostart boot --force  # retry root and all configured user boot jobs

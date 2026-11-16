@@ -28,6 +28,10 @@ root_owned() {
     [ "$((0$permissions & 022))" -eq 0 ]
 }
 
+state_file() {
+    [ ! -L "$1" ] && { [ ! -e "$1" ] || [ -f "$1" ]; }
+}
+
 # run_directory starts this function in a child, isolating its lock and state.
 directory() {
     job_pid=
@@ -53,6 +57,7 @@ directory() {
         mkdir -p "$state" || exit 1
         [ "$(stat -c %u -- "$state")" = "$uid" ] || fail "Wrong state owner: $state"
         chmod 700 "$state" || exit 1
+        state_file "$state/lock" || fail "Unsafe lock file: $state/lock"
         exec 9>"$state/lock" || exit 1
         flock -n 9 || { printf '%s: another runner is active\n' "$scope"; exit 1; }
     fi
@@ -71,6 +76,10 @@ directory() {
             result=1; continue
         fi
         record=$state/$name.state
+        log=$state/$name.log
+        for file in "$record" "$log" "$log.old"; do
+            state_file "$file" || fail "Expected a regular state/log file: $file"
+        done
         previous_boot= previous_status= previous_code=
         if [ -f "$record" ]; then
             read -r previous_boot previous_status previous_code < "$record" || :
@@ -91,7 +100,6 @@ directory() {
         # automatic retry that could repeat a partially completed command.
         temp=$(mktemp "$state/.record.XXXXXX") || exit 1
         printf '%s started\n' "$boot_id" > "$temp" && mv -f "$temp" "$record" || exit 1
-        log=$state/$name.log
         [ ! -f "$log" ] || mv -f "$log" "$log.old" || exit 1
         printf '%s boot=%s starting %s\n' "$(date -u '+%FT%TZ')" "$boot_id" "$script" > "$log" || exit 1
         printf '%s/%s: starting (log: %s)\n' "$scope" "$name" "$log"
@@ -125,8 +133,8 @@ run_directory() {
 
 users() (
     list=/etc/blue-mess/autostart-users
-    [ -e "$list" ] || exit 0
-    root_owned /etc/blue-mess && root_owned "$list" || fail "Unsafe user list: $list"
+    [ -e "$list" ] || [ -L "$list" ] || exit 0
+    [ -f "$list" ] && root_owned /etc/blue-mess && root_owned "$list" || fail "Unsafe user list: $list"
     result=0
     while IFS= read -r user || [ -n "$user" ]; do
         case "$user" in ''|'#'*) continue ;; esac
@@ -156,7 +164,7 @@ EOF
             runuser -u "$user" -- env -i \
             HOME="$home" USER="$user" LOGNAME="$user" SHELL=/usr/bin/ash \
             PATH=/usr/local/bin:/usr/bin:/bin LC_ALL=C BME_AUTOSTART_TIMEOUT="$seconds" \
-            /usr/bin/bluemess-autostart "$@" || result=1
+            /usr/bin/bluemess-autostart "$@" </dev/null || result=1
     done < "$list"
     exit "$result"
 )
@@ -171,6 +179,7 @@ if [ "$uid" = 0 ]; then
 fi
 
 case "${HOME:-}" in /*) ;; *) fail 'HOME must be an absolute path.' ;; esac
+[ -d "$HOME" ] && [ -x "$HOME" ] || fail 'Home directory is not accessible.'
 config=${XDG_CONFIG_HOME:-$HOME/.config}/blue-mess
 state_home=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess/autostart
 case "$config:$state_home" in /*:/*) ;; *) fail 'XDG paths must be absolute.' ;; esac

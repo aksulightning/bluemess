@@ -17,7 +17,7 @@ Target integration is enabled once, preserves later administrator disablement,
 and never executes hooks during package configuration. Installer media stays
 disabled. Existing daemon and desktop component ownership is unchanged.
 
-Validation: all 95 local tests passed under dash, including 12 new autostart
+Validation: all 96 local tests passed under dash, including 13 new autostart
 tests with real subprocesses, locks, timeouts, interruption cleanup and isolated
 package-upgrade/image-configuration fixtures. The `bme-config` Debian package
 build and changed shell/Python syntax checks passed. BusyBox, ShellCheck, Docker
