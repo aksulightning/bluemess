@@ -65,4 +65,8 @@ children="$children $!"
 openbox &
 window_manager=$!
 children="$children $window_manager"
+# The runner shares this display/session bus, but cannot block Openbox startup.
+# Its persistent boot records survive full logout and elogind runtime cleanup.
+bluemess-autostart desktop &
+children="$children $!"
 wait "$window_manager"

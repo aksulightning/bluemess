@@ -22,6 +22,7 @@ Sources:
 | default | dbus, elogind | System bus, ordinary-user PAM login, seats and device access |
 | default | network-manager (target), bme-network (installer), chrony | One network owner and time synchronization |
 | default | bme-syslog, bme-klog | Rotating system log and kernel messages |
+| default, target only | bme-autostart | Bounded once-per-boot commands for root and explicitly configured ordinary users, without login |
 | default, when selected | greetd | Default installed-system tty1 login through tuigreet and Debian PAM |
 | default, when selected | sddm | Embedded graphical greeter and complete Blue Mess X11 session |
 | default | bme-getty.tty1, bme-getty.tty2, bme-getty.tty3, bme-getty.ttyS0 | agetty on tty2, tty3 and serial; tty1 on live media or when selected on an installed system |
@@ -57,6 +58,13 @@ BusyBox bme-network service. Each owner rejects a running or enabled competitor.
 See [network migration and script coverage](script-parity.md).
 
 ## Session and desktop
+
+The [autostart runner](autostart.md) executes administrator root hooks and uses
+`runuser` with a clean environment for opt-in user boot hooks. It does not create
+an OpenRC user runlevel or replace existing daemon ownership. Persistent boot-ID
+records and locks prevent repeated attempts on service restart or logout/login.
+The shared desktop launcher runs a separate user scope with the session display
+and D-Bus; foreground hooks are bounded and are terminated on desktop logout.
 
 With the default tuigreet selection, greetd starts tuigreet on tty1 and authenticates through Debian's PAM stack with `libpam-elogind`. Elogind provides seat and device access for rootless Xorg. Tuigreet opens the user's interactive ash login shell after password authentication. `bluemess-desktop start` launches the packaged session from that shell, and `startx` uses the new-account `.xinitrc` wrapper. `bluemess-desktop auto-start true|false` stores a per-user flag under `${XDG_CONFIG_HOME:-$HOME/.config}/blue-mess/auto-start`. A guarded hook at the end of the user profile checks that flag, the user ID, tty1 and the absence of an existing graphical display. Enabling auto-start appends the hook once so user PATH and XDG settings are available first. Default is false. When X exits, the hook returns to the authenticated shell. Exiting that shell returns to tuigreet.
 

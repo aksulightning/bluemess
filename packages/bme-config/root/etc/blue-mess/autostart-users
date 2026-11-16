@@ -1,0 +1,3 @@
+# Ordinary accounts whose ~/.config/blue-mess/boot.d/*.sh run at boot.
+# One exact username per line, without whitespace. No login is required.
+# Empty by default. Root commands belong in /etc/blue-mess/autostart.d/.

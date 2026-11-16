@@ -29,6 +29,7 @@ install -m 0755 "$here/bme-config/prerm" "$stage/DEBIAN/prerm"
 printf '%s\n' /etc/apt/apt.conf.d/90blue-mess /etc/greetd/blue-mess.toml \
     /etc/default/grub.d/90-blue-mess.cfg /etc/blue-mess/syslog.conf \
     /etc/conf.d/greetd /etc/sddm.conf.d/90-blue-mess.conf \
+    /etc/conf.d/bme-autostart /etc/blue-mess/autostart-users \
     /etc/NetworkManager/conf.d/90-blue-mess.conf \
     /etc/containers/containers.conf.d/90-blue-mess.conf \
     /etc/xdg/xdg-desktop-portal/portals.conf > "$stage/DEBIAN/conffiles"

@@ -1,5 +1,13 @@
 # Troubleshooting
 
+For boot commands that did not run, use `sudo bluemess-autostart status` and
+`sudo rc-service bme-autostart status`. The first reports individual attempts;
+the second only reports the OpenRC wrapper. User boot scripts require an entry
+in `/etc/blue-mess/autostart-users`, an accessible home and executable `.sh` files
+under `~/.config/blue-mess/boot.d/`. They receive no graphical/session environment.
+Desktop hooks wait for the first desktop login after reboot. See
+[autostart logs, timeout and explicit retries](autostart.md#attempt-records-limits-and-diagnostics).
+
 - **No UEFI boot:** use amd64 UEFI with Secure Boot disabled. Check the ISO
   checksum. BIOS and Secure Boot are not supported in this version.
 - **Installer refuses a disk:** inspect `lsblk -o NAME,SIZE,MODEL,SERIAL,MOUNTPOINTS`

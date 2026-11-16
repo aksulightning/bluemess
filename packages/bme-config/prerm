@@ -2,6 +2,11 @@
 set -eu
 case "$1" in
 remove|deconfigure)
+    # Preserve administrator scripts and attempt records on package removal.
+    if [ -L /etc/runlevels/default/bme-autostart ]; then
+        rc-update del bme-autostart default
+    fi
+    rm -f /etc/init.d/bme-autostart
     for name in dbus elogind chrony udev greetd sddm network-manager; do
         if [ "$(dpkg-divert --listpackage "/etc/init.d/$name")" = bme-config ]; then
             rm -f "/etc/init.d/$name"

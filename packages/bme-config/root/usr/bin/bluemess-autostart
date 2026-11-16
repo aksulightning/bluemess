@@ -1,0 +1,189 @@
+#!/usr/bin/ash
+# One attempt per script and Linux boot; not a daemon supervisor.
+set -u
+umask 077
+
+fail() { printf 'Autostart: %s\n' "$*" >&2; exit 1; }
+usage() { echo 'Usage: bluemess-autostart boot|desktop [--force] | status' >&2; exit 2; }
+action=${1:-status}
+force=false
+case "$action" in boot|desktop|status) ;; *) usage ;; esac
+case "$#" in
+    0|1) ;;
+    2) [ "$2" = --force ] && [ "$action" != status ] || usage; force=true ;;
+    *) usage ;;
+esac
+uid=$(id -u) || exit 1
+boot_id=$(cat /proc/sys/kernel/random/boot_id) || fail 'Cannot read Linux boot ID.'
+case "$boot_id" in ''|*[!0-9a-f-]*) fail 'Invalid Linux boot ID.' ;; esac
+seconds=${BME_AUTOSTART_TIMEOUT:-30}
+case "$seconds" in ''|*[!0-9]*|0*) fail 'Timeout must be 1..300 seconds.' ;; esac
+[ "${#seconds}" -le 3 ] && [ "$seconds" -le 300 ] || fail 'Timeout must be 1..300 seconds.'
+export LC_ALL=C
+
+# Only administrator-owned input is ever interpreted by the root runner.
+root_owned() {
+    [ ! -L "$1" ] && [ "$(stat -c %u -- "$1")" = 0 ] || return 1
+    permissions=$(stat -c %a -- "$1") || return 1
+    [ "$((0$permissions & 022))" -eq 0 ]
+}
+
+# run_directory starts this function in a child, isolating its lock and state.
+directory() {
+    job_pid=
+    abort_job() {
+        trap - HUP INT TERM
+        if [ -n "$job_pid" ]; then
+            kill -TERM "$job_pid" 2>/dev/null || :
+            wait "$job_pid" 2>/dev/null || :
+        fi
+        exit 143
+    }
+    trap abort_job HUP INT TERM
+    jobs=$1
+    state=$2
+    scope=$3
+    [ -d "$jobs" ] || { printf '%s: no scripts\n' "$scope"; exit 0; }
+    if [ "$uid" = 0 ]; then
+        root_owned /etc/blue-mess && root_owned "$jobs" ||
+            fail "Unsafe root script directory: $jobs"
+    fi
+    if [ "$action" != status ]; then
+        [ ! -L "$state" ] || fail "State directory is a symlink: $state"
+        mkdir -p "$state" || exit 1
+        [ "$(stat -c %u -- "$state")" = "$uid" ] || fail "Wrong state owner: $state"
+        chmod 700 "$state" || exit 1
+        exec 9>"$state/lock" || exit 1
+        flock -n 9 || { printf '%s: another runner is active\n' "$scope"; exit 1; }
+    fi
+    result=0
+    found=false
+    for script in "$jobs"/*.sh; do
+        [ -f "$script" ] && [ -x "$script" ] || continue
+        found=true
+        name=${script##*/}
+        case "$name" in *[!a-zA-Z0-9._-]*)
+            printf 'Autostart: unsupported script name: %s\n' "$name" >&2
+            result=1; continue ;;
+        esac
+        if [ "$uid" = 0 ] && ! root_owned "$script"; then
+            printf 'Autostart: refusing unsafe root script: %s\n' "$script" >&2
+            result=1; continue
+        fi
+        record=$state/$name.state
+        previous_boot= previous_status= previous_code=
+        if [ -f "$record" ]; then
+            read -r previous_boot previous_status previous_code < "$record" || :
+        fi
+        if [ "$action" = status ] || { [ "$previous_boot" = "$boot_id" ] && [ "$force" = false ]; }; then
+            if [ "$previous_boot" != "$boot_id" ]; then
+                printf '%s/%s: pending this boot\n' "$scope" "$name"
+                result=1
+            elif [ "$previous_status" = exited ] && [ "$previous_code" = 0 ]; then
+                printf '%s/%s: completed this boot\n' "$scope" "$name"
+            else
+                printf '%s/%s: %s %s (use --force to retry)\n' "$scope" "$name" "$previous_status" "$previous_code"
+                result=1
+            fi
+            continue
+        fi
+        # Claim before execution. A crash is an incomplete attempt, never an
+        # automatic retry that could repeat a partially completed command.
+        temp=$(mktemp "$state/.record.XXXXXX") || exit 1
+        printf '%s started\n' "$boot_id" > "$temp" && mv -f "$temp" "$record" || exit 1
+        log=$state/$name.log
+        [ ! -f "$log" ] || mv -f "$log" "$log.old" || exit 1
+        printf '%s boot=%s starting %s\n' "$(date -u '+%FT%TZ')" "$boot_id" "$script" > "$log" || exit 1
+        printf '%s/%s: starting (log: %s)\n' "$scope" "$name" "$log"
+        # No stdin prompts, inherited lock descriptors or login shell. Scripts
+        # execute their own shebang. timeout also bounds foreground children.
+        (cd "$workdir" && exec timeout -k 5 "$seconds" "$script") </dev/null >> "$log" 2>&1 9>&- &
+        job_pid=$!
+        wait "$job_pid"
+        code=$?
+        job_pid=
+        printf '%s exit=%s\n' "$(date -u '+%FT%TZ')" "$code" >> "$log"
+        temp=$(mktemp "$state/.record.XXXXXX") || exit 1
+        printf '%s exited %s\n' "$boot_id" "$code" > "$temp" && mv -f "$temp" "$record" || exit 1
+        printf '%s/%s: exit %s\n' "$scope" "$name" "$code"
+        [ "$code" = 0 ] || result=1
+    done
+    [ "$found" = true ] || printf '%s: no executable .sh scripts\n' "$scope"
+    exit "$result"
+}
+
+run_directory() {
+    directory "$@" &
+    directory_pid=$!
+    # Desktop logout must also terminate an in-progress foreground hook.
+    trap 'kill -TERM "$directory_pid" 2>/dev/null; wait "$directory_pid" 2>/dev/null; exit 143' HUP INT TERM
+    wait "$directory_pid"
+    directory_result=$?
+    trap - HUP INT TERM
+    return "$directory_result"
+}
+
+users() (
+    list=/etc/blue-mess/autostart-users
+    [ -e "$list" ] || exit 0
+    root_owned /etc/blue-mess && root_owned "$list" || fail "Unsafe user list: $list"
+    result=0
+    while IFS= read -r user || [ -n "$user" ]; do
+        case "$user" in ''|'#'*) continue ;; esac
+        case "$user" in -*|[0-9]*|*[!a-zA-Z0-9_-]*)
+            printf 'Autostart: invalid username: %s\n' "$user" >&2
+            result=1; continue ;;
+        esac
+        entry=$(getent passwd "$user") || {
+            printf 'Autostart: unknown user: %s\n' "$user" >&2
+            result=1; continue
+        }
+        IFS=: read -r account _password user_uid _group _gecos home _shell <<EOF
+$entry
+EOF
+        case "$user_uid" in ''|*[!0-9]*) result=1; continue ;; esac
+        if [ "$account" != "$user" ] || [ "$user_uid" -lt 1000 ] || [ "$user_uid" -eq 65534 ]; then
+            printf 'Autostart: expected an ordinary user: %s\n' "$user" >&2
+            result=1; continue
+        fi
+        case "$home" in /*) ;; *) result=1; continue ;; esac
+        set -- "$action"
+        [ "$force" = false ] || set -- "$@" --force
+        # runuser changes UID/GID and supplementary groups before any home
+        # configuration is accessed. Never source .profile or a user script as root.
+        # Clean even the environment used to launch runuser/PAM.
+        env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+            runuser -u "$user" -- env -i \
+            HOME="$home" USER="$user" LOGNAME="$user" SHELL=/usr/bin/ash \
+            PATH=/usr/local/bin:/usr/bin:/bin LC_ALL=C BME_AUTOSTART_TIMEOUT="$seconds" \
+            /usr/bin/bluemess-autostart "$@" || result=1
+    done < "$list"
+    exit "$result"
+)
+
+if [ "$uid" = 0 ]; then
+    [ "$action" != desktop ] || fail 'Desktop scripts must run as an ordinary user.'
+    workdir=/
+    result=0
+    run_directory /etc/blue-mess/autostart.d /var/lib/blue-mess/autostart/system system || result=1
+    users || result=1
+    exit "$result"
+fi
+
+case "${HOME:-}" in /*) ;; *) fail 'HOME must be an absolute path.' ;; esac
+config=${XDG_CONFIG_HOME:-$HOME/.config}/blue-mess
+state_home=${XDG_STATE_HOME:-$HOME/.local/state}/blue-mess/autostart
+case "$config:$state_home" in /*:/*) ;; *) fail 'XDG paths must be absolute.' ;; esac
+workdir=$HOME
+result=0
+if [ "$action" = boot ] || [ "$action" = status ]; then
+    run_directory "$config/boot.d" "$state_home/boot" "user-$uid/boot" || result=1
+fi
+if [ "$action" = desktop ] || [ "$action" = status ]; then
+    if [ "$action" = desktop ]; then
+        [ -n "${DISPLAY:-}" ] && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] ||
+            fail 'Desktop scripts need an X11 display and session D-Bus.'
+    fi
+    run_directory "$config/autostart.d" "$state_home/desktop" "user-$uid/desktop" || result=1
+fi
+exit "$result"

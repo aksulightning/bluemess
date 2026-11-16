@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+description="Run configured system and ordinary-user commands once per boot"
+depend() {
+    need bme-boot
+    after dbus elogind network-manager bme-network bme-syslog
+    before greetd sddm bme-getty.tty1 bme-getty.tty2 bme-getty.tty3 bme-getty.ttyS0
+}
+start() {
+    ebegin "Running Blue Mess boot commands"
+    BME_AUTOSTART_TIMEOUT=${autostart_timeout:-30} /usr/bin/bluemess-autostart boot
+    eend $?
+}
+stop() {
+    # Stopping/restarting this one-shot service does not clear boot records or
+    # supervise/kill programs launched by user scripts.
+    return 0
+}
