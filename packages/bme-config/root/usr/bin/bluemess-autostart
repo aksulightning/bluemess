@@ -32,19 +32,17 @@ state_file() {
     [ ! -L "$1" ] && { [ ! -e "$1" ] || [ -f "$1" ]; }
 }
 
-abort_job() {
-    trap - HUP INT TERM
-    if [ -n "$job_pid" ]; then
-        kill -TERM "$job_pid" 2>/dev/null || :
-        wait "$job_pid" 2>/dev/null || :
-    fi
-    exit 143
-}
-
 # run_directory starts this function in a child, isolating its lock and state.
 directory() {
     job_pid=
-    trap 'abort_job' HUP INT TERM
+    trap '
+        trap - HUP INT TERM
+        if [ -n "$job_pid" ]; then
+            kill -TERM "$job_pid" 2>/dev/null || :
+            wait "$job_pid" 2>/dev/null || :
+        fi
+        exit 143
+    ' HUP INT TERM
     jobs=$1
     state=$2
     scope=$3
