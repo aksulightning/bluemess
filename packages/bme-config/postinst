@@ -35,6 +35,14 @@ configure)
     done
     # Update next-boot links without interrupting an authenticated console.
     if [ -L /etc/runlevels/sysinit/bme-root ]; then
+        # Enable on installed targets, including upgrades, without running jobs
+        # in a package maintainer session or inside the image-building chroot.
+        if [ ! -L /etc/runlevels/default/bme-media ] &&
+            [ ! -e /var/lib/blue-mess/autostart-integrated ]; then
+            mkdir -p /var/lib/blue-mess
+            rc-update add bme-autostart default
+            touch /var/lib/blue-mess/autostart-integrated
+        fi
         ln -sfn /etc/init.d/bme-getty /etc/init.d/bme-getty.tty1
         for port in tty2 tty3; do
             ln -sfn /etc/init.d/bme-getty "/etc/init.d/bme-getty.$port"

@@ -1,5 +1,14 @@
 # Blue Mess Edition
 
+## Commands at every boot
+
+The `bme-autostart` system OpenRC service runs custom commands once per boot,
+without login. It supports root scripts in `/etc/blue-mess/autostart.d/` and
+ordinary-user scripts in `~/.config/blue-mess/boot.d/` for accounts explicitly
+listed in `/etc/blue-mess/autostart-users`. No OpenRC user service is required.
+All lists start empty. Desktop-only hooks are also available, with separate
+once-per-boot records. See [setup, status, retries and limits](docs/autostart.md).
+
 ## Desktop applications and corrected tuigreet
 
 Images now build `tuigreet-bme` from the pinned Debian source with the upstream

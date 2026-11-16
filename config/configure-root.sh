@@ -51,6 +51,9 @@ if [ "$role" = installer ]; then
     ln -s /etc/init.d/bme-console "$root/etc/runlevels/default/bme-console"
 fi
 if [ "$role" = target ]; then
+    ln -s /etc/init.d/bme-autostart "$root/etc/runlevels/default/bme-autostart"
+    mkdir -p "$root/var/lib/blue-mess"
+    touch "$root/var/lib/blue-mess/autostart-integrated"
     # Select the packaged Debian wrapper only while constructing a new image.
     chroot "$root" update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper
     test -x "$root/etc/init.d/greetd"

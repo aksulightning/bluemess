@@ -1,5 +1,32 @@
 # Implementation record
 
+## 2026-11-16: generic commands once per boot, without login
+
+Added the native system `bme-autostart` service and POSIX/ash
+`bluemess-autostart` runner. Administrator root hooks and explicitly selected
+ordinary-user boot hooks run without interactive login or OpenRC user services.
+The user launcher drops UID/GID/groups with `runuser` before accessing the home
+scripts and supplies a clean environment. Desktop hooks use a separate scope
+inside the shared authenticated X11/D-Bus session.
+
+Boot IDs, persistent per-script attempt records and scope locks prevent automatic
+replay on service restart, concurrent launch or full logout/login. Each foreground
+hook has a bounded runtime; failed/incomplete attempts require an explicit retry.
+Logs retain the latest and previous attempts. Empty defaults do no custom work.
+Target integration is enabled once, preserves later administrator disablement,
+and never executes hooks during package configuration. Installer media stays
+disabled. Existing daemon and desktop component ownership is unchanged.
+
+Validation: all 96 local tests passed under dash, including 13 new autostart
+tests with real subprocesses, locks, timeouts, interruption cleanup and isolated
+package-upgrade/image-configuration fixtures. The `bme-config` Debian package
+build and changed shell/Python syntax checks passed. BusyBox, ShellCheck, Docker
+and QEMU are unavailable in this workspace; hosted target-shell checks are
+pending. VM probes were added to the existing greeter suite for two boots before
+login, correct user identity/environment, service restart and repeated desktop
+login. These probes have not yet run in a VM. No ISO boot, hardware or memory
+acceptance is claimed, and the rolling ISO workflow remains UNTESTED.
+
 ## 2026-11-10: wait for login-manager startup in VM verification
 
 - [Hosted run 42611300029](https://github.com/aksulightning/bluemess/actions/runs/42611300029)

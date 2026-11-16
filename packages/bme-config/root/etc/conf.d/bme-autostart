@@ -1,0 +1,3 @@
+# Maximum foreground runtime for each script; 1..300 seconds, then TERM.
+# Commands ignoring TERM are killed after another five seconds.
+autostart_timeout=30

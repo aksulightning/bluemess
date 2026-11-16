@@ -1,0 +1,4 @@
+Executable *.sh files here run as root once per boot, in filename order.
+Files and this directory must be root-owned and not group/other-writable.
+Use /etc/blue-mess/autostart-users for commands that should run as a user.
+See docs/autostart.md in the Blue Mess repository for examples and diagnostics.

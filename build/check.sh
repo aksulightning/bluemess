@@ -15,6 +15,8 @@ shellcheck -s ash -e SC1091 installer/bme-install installer/lib/install.sh
 
 # The desktop entry points are shipped without a .sh extension.
 for script in \
+    packages/bme-config/root/usr/bin/bluemess-autostart \
+    packages/bme-config/root/usr/share/blue-mess/init.d/bme-autostart \
     packages/bme-config/root/usr/bin/bluemess-install-flatpaks \
     packages/bme-config/root/usr/share/blue-mess/init.d/network-manager \
     packages/bme-config/root/usr/share/blue-mess/init.d/bme-network \
@@ -48,4 +50,6 @@ for path in Path('packages/bme-config/root/usr/share/blue-mess/skel/.config').rg
 XML
 
 shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-install-flatpaks
+shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-autostart
+shellcheck -s sh -e SC2154 packages/bme-config/root/usr/share/blue-mess/init.d/bme-autostart
 shellcheck -s bash packages/tuigreet-bme/build.sh -e SC1091

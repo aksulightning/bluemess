@@ -87,9 +87,11 @@ done
 
 
 def verify_choices(guest, password, output, result):
+    import autostart
     phase('Verify default tuigreet, then save SDDM while the desktop is active')
     greeter_recovery(guest, output)
     desktop(guest, password, output, 'greeter-default')
+    autostart.prepare(guest, output)
     record(output, 'switch-active-desktop.log', guest.run('''set -eu
 pid=$(pgrep -u tester -x openbox)
 bluemess-greeter-switcher sddm
@@ -105,6 +107,7 @@ test "$(readlink /etc/runlevels/default/sddm)" = /etc/init.d/sddm
 ''', timeout=180))
     result['checks'].append('Default tuigreet authenticates and starts the desktop; choosing SDDM and reconfiguring the package preserve the active session')
     reboot_as_root(guest, password)
+    autostart.check_boot(guest, output, 1)
     sddm_prompt(guest, output, 'first-boot')
     guest.qmp.type('incorrect\n')
     # PAM's rejection and the greeter's field reset are asynchronous. A fixed
@@ -122,15 +125,20 @@ done
 ''', timeout=150)
     time.sleep(3)
     user = sddm_login(guest, password, output, 'first')
+    autostart.check_desktop(guest, output, 1, 'first')
     logout_sddm(guest, user, output, 'first')
     result['checks'].append('SDDM rejects a wrong password; real graphical login starts the full Blue Mess session with elogind, D-Bus, panel, power manager, polkit, terminal and audible PipeWire output; logout returns to SDDM')
     user = sddm_login(guest, password, output, 'second')
+    autostart.check_desktop(guest, output, 1, 'second-login')
     logout_sddm(guest, user, output, 'second')
     result['checks'].append('A second SDDM login/logout works without duplicate desktop or audio processes')
     reboot_as_root(guest, password)
     user = sddm_login(guest, password, output, 'reboot')
+    autostart.check_boot(guest, output, 2)
+    autostart.check_desktop(guest, output, 2, 'reboot')
     logout_sddm(guest, user, output, 'reboot')
     result['checks'].append('SDDM remains selected and authenticates after another reboot')
+    result['checks'].append('Root and configured user autostart hooks run before login on two boots; service restart and repeated desktop login do not repeat commands; hooks retain the correct UID and environment')
     guest.run('bluemess-greeter-switcher agetty')
     reboot_as_root(guest, password)
     wait_for_service(guest, 'bme-getty.tty1')
