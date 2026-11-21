@@ -17,12 +17,6 @@ date -u '+Build time: %Y-%m-%dT%H:%M:%SZ' >> out/build-metadata.txt
 dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' > out/build-tools.tsv
 cp work/sources.list out/repositories.list
 bash packages/build.sh "$PWD/work/debs" "$VERSION"
-bash packages/tuigreet-bme/build.sh "$PWD/work/tuigreet-debs"
-mkdir -p out/tuigreet-bme
-cp -a work/tuigreet-debs/. out/tuigreet-bme/
-(cd out/tuigreet-bme && sha256sum ./*.deb source/* > SHA256SUMS)
-tar -cJf out/tuigreet-bme.tar.xz -C out tuigreet-bme
-(cd out && sha256sum tuigreet-bme.tar.xz > tuigreet-bme.sha256)
 
 bootstrap() {
     local role=$1 root="$PWD/work/$1" include lsb_output
@@ -40,9 +34,11 @@ bootstrap() {
     printf '#!/bin/sh\nexit 101\n' > "$root/usr/sbin/policy-rc.d"
     chmod 755 "$root/usr/sbin/policy-rc.d"
     if [[ $role == target ]]; then
-        cp work/tuigreet-debs/tuigreet-bme_*.deb "$root/tmp/"
-        chroot "$root" /bin/sh -c 'dpkg -i /tmp/tuigreet-bme_*.deb'
-        chroot "$root" dpkg-query -W -f='${Status}\n' tuigreet-bme | grep -x 'install ok installed'
+        # The manifest installs Debian's binary through signed APT metadata.
+        [[ $(chroot "$root" dpkg-query -W -f='${db:Status-Status} ${Version}' tuigreet) == "installed $TUIGREET_VERSION" ]]
+        if chroot "$root" dpkg-query -W -f='${db:Status-Status}\n' tuigreet-bme 2>/dev/null | grep -x installed >/dev/null; then
+            echo 'Temporary tuigreet-bme package must not be present in new images' >&2; exit 1
+        fi
     fi
     cp work/debs/*.deb "$root/tmp/"
     chroot "$root" /bin/sh -c 'dpkg -i /tmp/bme-*.deb'

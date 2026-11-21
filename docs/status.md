@@ -1,5 +1,34 @@
 # Implementation record
 
+## 2026-11-21: return to official Debian tuigreet and refresh the snapshot
+
+Rechecked Debian's archive timestamp API and pinned the latest available
+snapshot, `20261121T023257Z`. Its signed Sid amd64 index contains official
+`tuigreet=0.9.1-7`; no newer revision was listed. Locally verified the InRelease
+signatures with the Debian archive keyring, the Packages SHA256 and the binary
+package SHA256 (`3849e97bb3adafcba487e4dd5c60fa7426e4bbe3a05580bcbd303e7a4eeeaece`).
+
+Retired the temporary `tuigreet-bme` package, both local patches, its Rust build
+dependencies and its separate release bundle. New targets obtain `tuigreet`
+through signed APT metadata. Image construction asserts its exact version and
+rejects the temporary package. The full VM package check now requires Debian
+tuigreet. Existing installations have explicit APT migration instructions;
+package configuration does not silently change sources or replace the greeter.
+
+The existing PTY test is retained unchanged and now targets Debian's binary.
+A separate snapshot workflow runs the full offline install, desktop and
+three-boot memory suite in addition to the existing greeter workflow. No
+release publishing is added to validation. Debian's 0.9.1-7 changelog only
+changes maintainer metadata, and startup-race bug #1153617 remains pending.
+This package replacement is not evidence that either reported hardware symptom
+is resolved.
+
+Local shell/Python/workflow syntax checks and the `bme-config` package build
+passed. The PTY test cannot run locally because this workspace rejects Unix
+socket creation; Docker, QEMU, BusyBox and ShellCheck are unavailable here.
+All 96 local unit tests passed under dash. Hosted validation results are
+pending. No ISO boot, installation, graphics or memory acceptance is claimed.
+
 ## 2026-11-16: generic commands once per boot, without login
 
 Added the native system `bme-autostart` service and POSIX/ash
