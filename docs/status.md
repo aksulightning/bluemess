@@ -26,8 +26,34 @@ is resolved.
 Local shell/Python/workflow syntax checks and the `bme-config` package build
 passed. The PTY test cannot run locally because this workspace rejects Unix
 socket creation; Docker, QEMU, BusyBox and ShellCheck are unavailable here.
-All 96 local unit tests passed under dash. Hosted validation results are
-pending. No ISO boot, installation, graphics or memory acceptance is claimed.
+All 96 local unit tests passed under dash.
+
+Hosted results for code commit `983e415a54481683dbc58f6f06727e6200980fbf`:
+
+- [Package check 44879654824](https://github.com/aksulightning/bluemess/actions/runs/44879654824)
+  passed all 96 tests under BusyBox ash and the ShellCheck/syntax checks. APT
+  installed the official 0.9.1-7 binary; the retained PTY test failed after
+  approximately two seconds with EIO on the terminal master. This is not a
+  passing startup/session/exit result.
+- [ISO build 44879633591](https://github.com/aksulightning/bluemess/actions/runs/44879633591)
+  successfully assembled and checksummed an UNTESTED candidate. The target
+  package/version assertions passed; its kernel is 7.3.5+deb14-amd64.
+- [Full snapshot test 44879654923](https://github.com/aksulightning/bluemess/actions/runs/44879654923)
+  booted the USB installer, rejected installation onto its own medium, completed
+  the real offline installation, and booted the installed system with native
+  OpenRC. Serial authentication, DHCP/DNS and the package/APT checks passed.
+  It then failed waiting for tuigreet's Username prompt on tty1. Saved system
+  logs show repeated greeter exits without a session after roughly two seconds,
+  followed by OpenRC's respawn limit. The saved process list has agetty on tty2
+  and tty3, with no competing tty1 agetty. This reproduces a default-greeter
+  startup failure in QEMU without NVIDIA hardware.
+- [Focused greeter run 44879654804](https://github.com/aksulightning/bluemess/actions/runs/44879654804)
+  passed its static checks; its runtime result was not available when this
+  record was written.
+
+Desktop, SDDM, three-boot memory acceptance and the reported physical-machine
+symptoms remain unverified. The replacement stays a draft change; no validated
+release was published. Validation failures have not been waived or patched out.
 
 ## 2026-11-16: generic commands once per boot, without login
 
