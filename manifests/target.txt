@@ -7,7 +7,7 @@ bash
 dash
 login
 greetd
-# tuigreet-bme is built locally from the pinned source and installed before bme-config.
+tuigreet
 sddm
 qml6-module-qtquick
 qml6-module-qtqml-workerscript

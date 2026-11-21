@@ -27,6 +27,12 @@ resolution and integration changes, and pass the complete VM/benchmark suite.
 The additional `.github/workflows/greeter-validation.yml` runs static checks
 and the focused login-manager matrix for relevant pull requests. It does not
 publish an ISO or replace the archived full release/RAM validation workflow.
+`.github/workflows/snapshot-validation.yml` separately runs the complete offline
+installation, desktop and three-boot memory suite for pull requests that change
+the snapshot/build inputs or manifests. It preserves diagnostics and does not
+publish a release. Both workflows also support manual dispatch.
+`.github/workflows/package-validation.yml` installs and tests the official
+Debian tuigreet binary; it no longer builds a local replacement package.
 To run that matrix locally after building the candidate, use:
 
 ```sh

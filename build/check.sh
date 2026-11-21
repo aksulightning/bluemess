@@ -52,4 +52,3 @@ XML
 shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-install-flatpaks
 shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-autostart
 shellcheck -s sh -e SC2154 packages/bme-config/root/usr/share/blue-mess/init.d/bme-autostart
-shellcheck -s bash packages/tuigreet-bme/build.sh -e SC1091

@@ -852,7 +852,10 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         network(guest, output, 'installed')
         phase('Installed system: verify packages/APT policy, install/remove hello and simulate upgrade')
         record(output, 'packages.log', guest.run('''set -eu
-for p in htop nano fastfetch xterm xfce4-terminal less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet-bme network-manager network-manager-applet network-manager-tui flatpak podman xfce4-settings xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+for p in htop nano fastfetch xterm xfce4-terminal less procps iproute2 ca-certificates sudo bash dash openrc openrc-init busybox libpam-elogind greetd tuigreet network-manager network-manager-applet network-manager-tui flatpak podman xfce4-settings xfce4-panel xfce4-power-manager xfconf upower polkitd pkexec lxpolkit build-essential linux-headers-amd64 dkms lua5.4 pipewire pipewire-pulse pipewire-alsa wireplumber pulseaudio-utils pavucontrol alsa-ucm-conf firmware-sof-signed firmware-intel-sound; do dpkg-query -W -f='${binary:Package} ${Version} ${Status}\\n' "$p"; done
+if dpkg-query -W -f='${db:Status-Status}\\n' tuigreet-bme 2>/dev/null | grep -x installed; then
+    echo 'Unexpected temporary tuigreet-bme package'; exit 1
+fi
 apt-config dump | grep '^APT::Install-Recommends "false";'
 apt-config dump | grep '^APT::Install-Suggests "false";'
 dpkg --audit
