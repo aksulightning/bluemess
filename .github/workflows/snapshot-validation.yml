@@ -1,0 +1,51 @@
+name: Verify refreshed Debian snapshot
+on:
+  pull_request:
+    paths:
+      - 'build/inputs.env'
+      - 'build/Dockerfile'
+      - 'build/build.sh'
+      - 'manifests/**'
+      - '.github/workflows/snapshot-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: snapshot-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Build pinned environment
+        run: |
+          source build/inputs.env
+          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile .
+          mkdir -p out
+          docker image inspect bme-builder > out/builder-image.json
+      - name: Static and lifecycle checks
+        run: docker run --rm -v "$PWD:/src" bme-builder build/check.sh
+      - name: Build snapshot candidate
+        run: docker run --rm --privileged -e VERSION=0.1.0-snapshot-test -e SOURCE_COMMIT="$GITHUB_SHA" -v "$PWD:/src" bme-builder build/build.sh
+      - name: Full offline installation, desktop and three-boot memory suite
+        run: |
+          docker run --rm --privileged -v "$PWD:/src" bme-builder -c 'python3 vm/verify.py --iso out/blue-mess-edition-0.1.0-snapshot-test-amd64.iso --output out/verification'
+          docker run --rm -v "$PWD:/src" bme-builder -c 'python3 build/validate-results.py out'
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: snapshot-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/logs/
+            out/verification/*.*
+            out/*metadata*
+            out/*packages.tsv
+            out/builder-image.json
+            out/repositories.list
+          retention-days: 14
+          if-no-files-found: warn

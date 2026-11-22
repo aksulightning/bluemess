@@ -1,4 +1,4 @@
-name: Build and check tuigreet-bme
+name: Check Debian tuigreet
 on:
   push:
     branches: [main, 'codex/**']
@@ -20,15 +20,24 @@ jobs:
       - name: Build pinned environment
         run: |
           source build/inputs.env
-          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" --build-arg TUIGREET_SOURCE_VERSION="$TUIGREET_SOURCE_VERSION" -t bme-builder -f build/Dockerfile .
+          docker build --build-arg DEBIAN_SNAPSHOT="$DEBIAN_SNAPSHOT" -t bme-builder -f build/Dockerfile .
       - name: Static and lifecycle checks
         run: docker run --rm -v "$PWD:/src" bme-builder build/check.sh
-      - name: Build Debian package and exercise terminal startup
+      - name: Install official Debian package and exercise terminal startup
         run: |
-          docker run --rm -v "$PWD:/src" bme-builder packages/tuigreet-bme/build.sh /src/out/tuigreet-bme
+          source build/inputs.env
+          mkdir -p out
+          set -o pipefail
+          docker run --rm -e TUIGREET_VERSION="$TUIGREET_VERSION" -v "$PWD:/src" bme-builder -euo pipefail -c '
+            apt-get update
+            apt-get install -y --no-install-recommends "tuigreet=$TUIGREET_VERSION"
+            test "$(dpkg-query -W -f='\''${db:Status-Status} ${Version}'\'' tuigreet)" = "installed $TUIGREET_VERSION"
+            python3 build/check-tuigreet-pty.py /usr/bin/tuigreet
+          ' 2>&1 | tee out/tuigreet-check.log
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
         with:
-          name: tuigreet-bme-${{ github.sha }}
-          path: out/tuigreet-bme/
-          if-no-files-found: error
+          name: debian-tuigreet-check-${{ github.sha }}
+          path: out/tuigreet-check.log
+          if-no-files-found: warn
           retention-days: 14

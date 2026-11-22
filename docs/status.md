@@ -1,5 +1,60 @@
 # Implementation record
 
+## 2026-11-21: return to official Debian tuigreet and refresh the snapshot
+
+Rechecked Debian's archive timestamp API and pinned the latest available
+snapshot, `20261121T023257Z`. Its signed Sid amd64 index contains official
+`tuigreet=0.9.1-7`; no newer revision was listed. Locally verified the InRelease
+signatures with the Debian archive keyring, the Packages SHA256 and the binary
+package SHA256 (`3849e97bb3adafcba487e4dd5c60fa7426e4bbe3a05580bcbd303e7a4eeeaece`).
+
+Retired the temporary `tuigreet-bme` package, both local patches, its Rust build
+dependencies and its separate release bundle. New targets obtain `tuigreet`
+through signed APT metadata. Image construction asserts its exact version and
+rejects the temporary package. The full VM package check now requires Debian
+tuigreet. Existing installations have explicit APT migration instructions;
+package configuration does not silently change sources or replace the greeter.
+
+The existing PTY test is retained unchanged and now targets Debian's binary.
+A separate snapshot workflow runs the full offline install, desktop and
+three-boot memory suite in addition to the existing greeter workflow. No
+release publishing is added to validation. Debian's 0.9.1-7 changelog only
+changes maintainer metadata, and startup-race bug #1153617 remains pending.
+This package replacement is not evidence that either reported hardware symptom
+is resolved.
+
+Local shell/Python/workflow syntax checks and the `bme-config` package build
+passed. The PTY test cannot run locally because this workspace rejects Unix
+socket creation; Docker, QEMU, BusyBox and ShellCheck are unavailable here.
+All 96 local unit tests passed under dash.
+
+Hosted results for code commit `983e415a54481683dbc58f6f06727e6200980fbf`:
+
+- [Package check 44879654824](https://github.com/aksulightning/bluemess/actions/runs/44879654824)
+  passed all 96 tests under BusyBox ash and the ShellCheck/syntax checks. APT
+  installed the official 0.9.1-7 binary; the retained PTY test failed after
+  approximately two seconds with EIO on the terminal master. This is not a
+  passing startup/session/exit result.
+- [ISO build 44879633591](https://github.com/aksulightning/bluemess/actions/runs/44879633591)
+  successfully assembled and checksummed an UNTESTED candidate. The target
+  package/version assertions passed; its kernel is 7.3.5+deb14-amd64.
+- [Full snapshot test 44879654923](https://github.com/aksulightning/bluemess/actions/runs/44879654923)
+  booted the USB installer, rejected installation onto its own medium, completed
+  the real offline installation, and booted the installed system with native
+  OpenRC. Serial authentication, DHCP/DNS and the package/APT checks passed.
+  It then failed waiting for tuigreet's Username prompt on tty1. Saved system
+  logs show repeated greeter exits without a session after roughly two seconds,
+  followed by OpenRC's respawn limit. The saved process list has agetty on tty2
+  and tty3, with no competing tty1 agetty. This reproduces a default-greeter
+  startup failure in QEMU without NVIDIA hardware.
+- [Focused greeter run 44879654804](https://github.com/aksulightning/bluemess/actions/runs/44879654804)
+  passed its static checks; its runtime result was not available when this
+  record was written.
+
+Desktop, SDDM, three-boot memory acceptance and the reported physical-machine
+symptoms remain unverified. The replacement stays a draft change; no validated
+release was published. Validation failures have not been waived or patched out.
+
 ## 2026-11-16: generic commands once per boot, without login
 
 Added the native system `bme-autostart` service and POSIX/ash

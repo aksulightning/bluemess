@@ -9,11 +9,12 @@ listed in `/etc/blue-mess/autostart-users`. No OpenRC user service is required.
 All lists start empty. Desktop-only hooks are also available, with separate
 once-per-boot records. See [setup, status, retries and limits](docs/autostart.md).
 
-## Desktop applications and corrected tuigreet
+## Desktop applications and Debian tuigreet
 
-Images now build `tuigreet-bme` from the pinned Debian source with the upstream
-terminal-startup fix. The executable is still `tuigreet`; greetd remains the
-default. See [package build, tests and rollback](docs/tuigreet-bme.md).
+Images install Debian's official `tuigreet` 0.9.1-7 from the signed
+20261121T023257Z Sid snapshot. The temporary `tuigreet-bme` build and local
+patches are retired; greetd remains the default. See
+[package selection, existing-system migration and validation](docs/tuigreet.md).
 
 New installations use NetworkManager with a tray applet and nmtui. The desktop
 includes the native tools from the original Alpine scripts. Run
