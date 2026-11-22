@@ -35,11 +35,11 @@ assert display, 'Cannot open the greeter display'
 window, revert = ctypes.c_ulong(), ctypes.c_int()
 x.XGetInputFocus(display, ctypes.byref(window), ctypes.byref(revert))
 x.XCloseDisplay(display)
-print(hex(window.value))
+print(hex(window.value) if window.value > 1 else '')
 '''
     return guest.run('set -eu\nn=0\nwhile :; do\n' +
                      'window=$(' + xenv + 'python3 -c ' + shlex.quote(focus) + ')\n' +
-                     'if ' + xenv + 'xprop -id "$window" _NET_WM_PID | grep -Eq ' +
+                     'if [ -n "$window" ] && ' + xenv + 'xprop -id "$window" _NET_WM_PID | grep -Eq ' +
                      shlex.quote(' = ' + pid + '$') + ' && ' +
                      xenv + 'xwininfo -id "$window" | grep -q "Map State: IsViewable"; then\n' +
                      '    printf "SDDM window ready: %s\\n" "$window"; break\nfi\n' +
