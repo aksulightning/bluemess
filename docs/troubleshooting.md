@@ -39,7 +39,7 @@ been established. Installer observations are reported separately by VM tooling.
 
 ### Switching login managers
 
-`sudo bluemess-greeter-switcher` offers tuigreet (default), agetty and SDDM.
+`sudo bluemess-greeter-switcher` offers tuigreet, agetty (the default on new images) and SDDM.
 The equivalent arguments are `tuigreet`, `agetty` and `sddm`; `status` reports
 both the next-boot selection and running services. Reboot when ready to apply
 the selection. The tool does not restart services during an active session.
@@ -82,7 +82,7 @@ password authentication, full desktop/audio startup, repeated logout/login,
 reboot persistence and upgrade preservation. Its `greeter-results.json` is
 separate from the full release and three-boot RAM acceptance report.
 
-Sign in at tuigreet as your ordinary user on the machine's tty1, then run
+Sign in at the selected text login as your ordinary user on the machine's tty1, then run
 `bluemess-desktop start` from that login. Run `bluemess-session-check`
 from tty1 or an Openbox terminal to inspect that process's session.
 
@@ -91,7 +91,8 @@ If tty1 has no greeter, use tty2, tty3 or the serial console to log in and check
 `/etc/greetd/blue-mess.toml` for tty1 and Debian's `/etc/pam.d/greetd` for
 authentication. When upgrading an earlier installation, install `greetd`
 and `tuigreet` before configuring the updated `bme-config` package.
-The package switches the default runlevel to greetd for the next boot.
+New images use agetty. Package upgrades preserve the saved login-manager
+selection; they do not switch existing users to the new default.
 
 ### Greeter startup readiness and delay
 

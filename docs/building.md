@@ -29,10 +29,14 @@ and the focused login-manager matrix for relevant pull requests. It does not
 publish an ISO or replace the archived full release/RAM validation workflow.
 `.github/workflows/snapshot-validation.yml` separately runs the complete offline
 installation, desktop and three-boot memory suite for pull requests that change
-the snapshot/build inputs or manifests. It preserves diagnostics and does not
+build inputs, manifests, installer, packages, configuration, VM verification
+or tests. It preserves diagnostics and does not
 publish a release. Both workflows also support manual dispatch.
 `.github/workflows/package-validation.yml` installs and tests the official
 Debian tuigreet binary; it no longer builds a local replacement package.
+That optional greeter check retains its known failure. The full image suite
+now authenticates through agetty, the new-image default. The focused greeter
+matrix tests agetty and SDDM before attempting the optional tuigreet path.
 To run that matrix locally after building the candidate, use:
 
 ```sh
@@ -82,6 +86,15 @@ ISO assembly uses Debian live-boot, an xz squashfs installer root, and a separat
 zstd tar payload. Debian grub-mkrescue creates the EFI El Torito/hybrid image;
 its actual layout report is retained. It contains all target packages,
 initramfs tools and GRUB modules needed to install without a connection.
+After final initramfs generation, `build/check-hardware-image.py` extracts each
+image and verifies its AMDGPU module and kernel-declared Stoney firmware.
+`out/hardware-installer.json` and `out/hardware-target.json` accompany the build.
+The existing USB and optical boot tests are retained. After installation the
+verifier replaces OVMF variables with a pristine template, removes installer
+media, then proves disk-only EFI fallback boot. Subsequent benchmark reboots
+retain the new variable store. Publication validation requires both hardware
+content reports and the fresh-variable/fallback-boot evidence. These checks do
+not replace the [physical HP acceptance record](hardware/hp-chromebook-11a-g8-ee.md).
 
 In the archived workflow, after full verification the release job downloads the validated artifact,
 checks its ISO checksum, and publishes those bytes. A push to

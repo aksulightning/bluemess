@@ -33,15 +33,15 @@ class ConsoleLayout(unittest.TestCase):
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 links = {p.name for p in (root / 'etc/runlevels/default').iterdir()}
-                expected = {'bme-getty.tty2', 'bme-getty.tty3', 'bme-getty.ttyS0'}
+                expected = {'bme-getty.tty1', 'bme-getty.tty2', 'bme-getty.tty3', 'bme-getty.ttyS0'}
                 if role == 'installer':
-                    expected.add('bme-getty.tty1')
                     self.assertIn('bme-console', links)
                     self.assertIn('bme-network', links)
                     self.assertNotIn('network-manager', links)
                     self.assertNotIn('greetd', links)
                 else:
-                    self.assertIn('greetd', links)
+                    self.assertNotIn('greetd', links)
+                    self.assertEqual((root / 'etc/blue-mess/greeter').read_text(), 'agetty\n')
                     self.assertIn('network-manager', links)
                     self.assertNotIn('bme-network', links)
                 self.assertEqual({p for p in links if p.startswith('bme-getty.')}, expected)

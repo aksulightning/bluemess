@@ -11,6 +11,6 @@ RUN test -n "$DEBIAN_SNAPSHOT" && \
     apt-get install -y ca-certificates debian-archive-keyring mmdebstrap \
       squashfs-tools xorriso mtools dosfstools grub-efi-amd64-bin grub-common \
       gdisk zstd python3 python3-pexpect qemu-system-x86 qemu-utils ovmf \
-      busybox shellcheck git && rm -rf /var/lib/apt/lists/*
+      busybox shellcheck git initramfs-tools-core && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 ENTRYPOINT ["/bin/bash"]

@@ -2,6 +2,7 @@
 
 No PAM, hardware or host display manager is used. This is not a VT boot test.
 """
+import errno
 import fcntl
 import json
 import os
@@ -15,6 +16,42 @@ import sys
 import tempfile
 import termios
 import time
+
+
+def check_startup(process, master, delay):
+    """Drain the terminal before checking exit, including Linux PTY EIO/EOF."""
+    output = b''
+    query_buffer = b''
+    deadline = time.monotonic() + 3.5
+    while time.monotonic() < deadline:
+        data = None
+        if select.select([master], [], [], 0.05)[0]:
+            try:
+                data = os.read(master, 65536)
+            except OSError as exc:
+                if exc.errno != errno.EIO:
+                    raise
+                data = b''  # Linux reports a closed PTY slave as EIO.
+            output += data
+        if data == b'':
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+        if data == b'' or process.poll() is not None:
+            raise AssertionError(
+                f'tuigreet startup failed (cursor reply delay {delay}s, '
+                f'exit status {process.returncode}): terminal closed or process exited; '
+                f'captured terminal output: {output!r}')
+        if data is None:
+            continue
+        query_buffer += data
+        while b'\x1b[6n' in query_buffer:
+            _, query_buffer = query_buffer.split(b'\x1b[6n', 1)
+            time.sleep(delay)
+            os.write(master, b'\x1b[1;1R')
+        query_buffer = query_buffer[-3:]
+    assert b'BME-PTY-READY' in output, output
 
 
 def trial(binary, delay):
@@ -33,27 +70,11 @@ def trial(binary, delay):
                 start_new_session=True,
             )
             os.close(slave)
-            output = b''
-            query_buffer = b''
             try:
                 connection, _ = server.accept()
                 with connection:
                     connection.settimeout(5)
-                    deadline = time.monotonic() + 3.5
-                    while time.monotonic() < deadline:
-                        if process.poll() is not None:
-                            raise AssertionError(f'early exit {process.returncode}: {output!r}')
-                        if not select.select([master], [], [], 0.05)[0]:
-                            continue
-                        data = os.read(master, 65536)
-                        output += data
-                        query_buffer += data
-                        while b'\x1b[6n' in query_buffer:
-                            _, query_buffer = query_buffer.split(b'\x1b[6n', 1)
-                            time.sleep(delay)
-                            os.write(master, b'\x1b[1;1R')
-                        query_buffer = query_buffer[-3:]
-                    assert b'BME-PTY-READY' in output, output
+                    check_startup(process, master, delay)
                     # An alive process is insufficient: verify keyboard -> greetd IPC.
                     os.write(master, b'bme-pty-test\r')
 

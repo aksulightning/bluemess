@@ -50,5 +50,7 @@ for path in Path('packages/bme-config/root/usr/share/blue-mess/skel/.config').rg
 XML
 
 shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-install-flatpaks
+busybox ash -n packages/bme-config/root/usr/share/initramfs-tools/hooks/blue-mess-amdgpu
+shellcheck -s sh -e SC1091 packages/bme-config/root/usr/share/initramfs-tools/hooks/blue-mess-amdgpu
 shellcheck -s ash packages/bme-config/root/usr/bin/bluemess-autostart
 shellcheck -s sh -e SC2154 packages/bme-config/root/usr/share/blue-mess/init.d/bme-autostart

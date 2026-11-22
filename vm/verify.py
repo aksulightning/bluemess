@@ -276,21 +276,25 @@ done
 
 def root_state(guest, output, suffix):
     phase(f'{suffix}: assert native PID 1, service state and system configuration')
-    wait_for_service(guest, 'greetd')
+    wait_for_service(guest, 'bme-getty.tty1')
     wait_for_service(guest, 'network-manager')
     facts = guest.run('''set -eu
 readlink /proc/1/exe
 case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
 rc-status --all
-for service in bme-root udev bme-localmount bme-boot network-manager bme-syslog bme-klog dbus elogind chrony greetd bme-getty.tty2 bme-getty.tty3 bme-getty.ttyS0; do rc-service "$service" status; done
-test "$(readlink /etc/runlevels/default/greetd)" = /etc/init.d/greetd
-test ! -L /etc/runlevels/default/bme-getty.tty1
+for service in bme-root udev bme-localmount bme-boot network-manager bme-syslog bme-klog dbus elogind chrony bme-getty.tty1 bme-getty.tty2 bme-getty.tty3 bme-getty.ttyS0; do rc-service "$service" status; done
+test "$(cat /etc/blue-mess/greeter)" = agetty
+test "$(readlink /etc/runlevels/default/bme-getty.tty1)" = /etc/init.d/bme-getty.tty1
+test ! -L /etc/runlevels/default/greetd
+test ! -L /etc/runlevels/default/sddm
+! pgrep -x greetd
+! pgrep -x sddm
 test ! -L /etc/runlevels/default/bme-getty.tty4
 grep -qw console=tty4 /proc/cmdline
 ! grep -qw console=tty0 /proc/cmdline
 # State markers alone are insufficient: assert the actual daemon processes.
 ps -eo pid,ppid,user,args
-for daemon in dbus-daemon elogind chronyd greetd NetworkManager; do
+for daemon in dbus-daemon elogind chronyd NetworkManager; do
     pids=$(pgrep -x "$daemon") || { echo "Missing running daemon: $daemon" >&2; exit 1; }
     for pid in $pids; do readlink /proc/"$pid"/exe; done
 done
@@ -301,7 +305,7 @@ for device in /dev/input/event*; do
     test "$(stat -c %G "$device")" = input
 done
 dbus-send --system --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames
-for service in dbus elogind chrony greetd; do
+for service in dbus elogind chrony bme-getty.tty1; do
     test "$(pgrep -fc "^supervise-daemon $service --start ")" -eq 1
 done
 findmnt -n -o FSTYPE /
@@ -381,6 +385,50 @@ done
 ''', timeout=90)
 
 
+def wait_for_text_login(guest, prompt='login:'):
+    process = 'agetty' if prompt == 'login:' else 'login'
+    guest.run(f'''set -eu
+test -c /dev/vcs1
+n=0
+until grep -aFq {shlex.quote(prompt)} /dev/vcs1 &&
+      ps -t tty1 -o comm= | grep -Eq '^[[:space:]]*{process}$'; do
+    n=$((n+1)); test "$n" -le 60; sleep 1
+done
+''', timeout=90)
+
+
+def text_login_recovery(guest, output):
+    """Restart/crash the unused VM login, never an authenticated session."""
+    phase('Verify agetty startup and supervised recovery before login')
+    wait_for_text_login(guest)
+    record(output, 'text-login-restart.log', guest.run('''set -eu
+! ps -t tty1 -o user= | grep -qx '[[:space:]]*tester'
+rc-service bme-getty.tty1 restart
+rc-service bme-getty.tty1 status
+''', timeout=45))
+    wait_for_text_login(guest)
+    record(output, 'text-login-recovery.log', guest.run('''set -eu
+supervisor=$(cat /run/bme-getty.tty1.pid)
+login=$(pgrep -P "$supervisor" -x agetty)
+test "$(printf '%s\\n' "$login" | wc -l)" -eq 1
+kill -KILL "$login"
+n=0
+while :; do
+    replacement=$(pgrep -P "$supervisor" -x agetty || :)
+    if [ -n "$replacement" ] && [ "$replacement" != "$login" ]; then break; fi
+    n=$((n+1)); test "$n" -le 15; sleep 1
+done
+test "$(cat /run/bme-getty.tty1.pid)" = "$supervisor"
+rc-service bme-getty.tty1 status
+printf 'agetty recovered: %s -> %s\\n' "$login" "$replacement"
+''', timeout=30))
+    wait_for_text_login(guest)
+    supervisor = guest.run('cat /run/bme-getty.tty1.pid').strip()
+    if not supervisor.isdigit():
+        raise Failure('Expected one agetty supervisor')
+    return supervisor
+
+
 def greeter_recovery(guest, output):
     """Exercise startup and one crash only at the unused guest login prompt."""
     phase('Verify greetd startup readiness and supervised crash recovery before login')
@@ -413,22 +461,25 @@ printf 'greetd recovered: %s -> %s\\n' "$daemon" "$replacement"
     return daemon
 
 
-def desktop(guest, password, output, suffix, auto_start=False):
-    phase(f'{suffix}: assert tty1 is selected before tuigreet login')
+def desktop(guest, password, output, suffix, auto_start=False, greeter='agetty'):
+    if greeter not in ('agetty', 'tuigreet'):
+        raise Failure('Unsupported console login in desktop verification')
+    wait_prompt = wait_for_text_login if greeter == 'agetty' else wait_for_greeter
+    phase(f'{suffix}: assert tty1 is selected before {greeter} login')
     guest.run('test "$(cat /sys/class/tty/tty0/active)" = tty1')
     console_state(guest, output, suffix, 'before-login')
     try:
-        wait_for_greeter(guest, 'Username')
+        wait_prompt(guest, 'login:' if greeter == 'agetty' else 'Username')
         guest.qmp.type('tester\n')
         # Read the real VT text before sending a secret. This confirms QMP input
-        # reached tuigreet and prevents typing a password at a username/shell prompt.
-        wait_for_greeter(guest, 'Password:')
-        phase(f'{suffix}: tuigreet displays the PAM password prompt on tty1')
+        # reached login and prevents typing a password at a username/shell prompt.
+        wait_prompt(guest, 'Password:')
+        phase(f'{suffix}: {greeter} displays the PAM password prompt on tty1')
         guest.qmp.type(password + '\n')
         # Successful password login must produce both a tester-owned ash on tty1
         # and the active PAM/logind login session for that same user and VT.
         # who is retained as evidence but cannot be the gate when utmp is absent.
-        tty_login = guest.run('''set -eu
+        tty_login = guest.run('bme_login_service=' + ('login' if greeter == 'agetty' else 'greetd') + '\n' + '''set -eu
 tester_uid=$(id -u tester)
 n=0
 while :; do
@@ -448,7 +499,7 @@ while :; do
            printf '%s\\n' "$properties" | grep -qx 'TTY=tty1' &&
            printf '%s\\n' "$properties" | grep -qx 'Active=yes' &&
            printf '%s\\n' "$properties" | grep -qx 'Seat=seat0' &&
-           printf '%s\\n' "$properties" | grep -qx 'Service=greetd' &&
+           printf '%s\\n' "$properties" | grep -qx "Service=$bme_login_service" &&
            printf '%s\\n' "$properties" | grep -qx 'Remote=no'; then
             session_ok=1
             printf '%s\\n' "$properties"
@@ -515,14 +566,20 @@ runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q |
 xpid=$(pgrep -u tester -x Xorg); test -n "$xpid"
 obpid=$(pgrep -u tester -x openbox); test -n "$obpid"
 tpid=$(pgrep -u tester -x xfce4-terminal); test -n "$tpid"
-# GTK/VTE creates the terminal process before it forks the interactive shell.
-# Wait for that child rather than treating process creation as shell readiness.
+# GTK may start image-loader helpers before VTE forks the interactive shell.
+# Find the actual ash child rather than assuming the first child is the shell.
 n=0
 while :; do
-    child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' ')
-    if [ -n "$child" ] && [ -e /proc/"$child"/exe ]; then
-        case "$(readlink /proc/"$child"/exe)" in */busybox) break ;; esac
-    fi
+    child=
+    for candidate in $(ps -o pid= --ppid "$tpid"); do
+        case "$(readlink /proc/"$candidate"/exe 2>/dev/null || :)" in */busybox)
+            if tr '\\000' ' ' < /proc/"$candidate"/cmdline | grep -Eq '(^|/|-| )ash( |$)'; then
+                child=$candidate
+                break
+            fi;;
+        esac
+    done
+    [ -z "$child" ] || break
     n=$((n+1)); test "$n" -le 30; sleep 1
 done
 case "$(readlink /proc/"$child"/exe)" in */busybox) ;; *) exit 1;; esac
@@ -542,7 +599,7 @@ cat /home/tester/.local/share/xorg/Xorg.0.log
 def console_layout(guest, password, output):
     """Use real F-key switching, password logins, and diagnostic output probes."""
     phase('Verify tty1/2/3 login layout and diagnostics-only tty4')
-    wait_for_greeter(guest, 'Username')
+    wait_for_text_login(guest)
     guest.run('test "$(cat /sys/class/tty/tty0/active)" = tty1')
     def switch(vt):
         guest.qmp.command('send-key', {'keys': [{'type': 'qcode', 'data': key}
@@ -835,6 +892,14 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
         guest.close()
         guest = None
         result['checks'].append('Actual installer completes offline on disposable GPT/EFI/ext4 disk')
+        # Prove disk-only boot via EFI/BOOT/BOOTX64.EFI with no saved boot entry
+        # from the installer. Subsequent benchmark reboots keep these variables.
+        shutil.copyfile(args.ovmf_vars, nvram)
+        with nvram.open('rb') as stream:
+            variables_sha256 = hashlib.file_digest(stream, 'sha256').hexdigest()
+        record(output, 'fresh-uefi-variables.json', json.dumps({
+            'template': str(args.ovmf_vars), 'sha256': variables_sha256,
+            'reset_after_installation': True}, indent=2))
         guest = Guest(args, work, 'installed', disk, nvram, network=True)
         guest.redactions = [password]
         guest.login('tester', password)
@@ -843,6 +908,17 @@ test "$(lsblk -nrpo TYPE /dev/vda | wc -l)" -eq 1
             raise Failure('Fresh user home has unexpected visible entries: ' + layout)
         guest.root(password)
         root_state(guest, output, 'installed')
+        record(output, 'efi-fallback.log', guest.run('''set -eu
+test -d /sys/firmware/efi
+test -s /boot/efi/EFI/BOOT/BOOTX64.EFI
+findmnt /boot/efi
+# EFI variable access is optional: the removable fallback must also work when
+# firmware variables are unavailable or efivarfs is not mounted.
+if ! efibootmgr -v; then
+    printf '%s\\n' 'EFI variable listing unavailable; disk-only UEFI boot and fallback file verified above.'
+fi
+'''))
+        result['checks'].append('Installed disk boots through its EFI fallback with fresh firmware variables and no installer medium')
         if args.greeters_only:
             from greeters import verify_choices
             result['scope'] = 'greeters-only; not release or memory acceptance'
@@ -875,16 +951,16 @@ case "$(readlink /proc/1/exe)" in */openrc-init) ;; *) exit 1;; esac
         result['checks'].append('Disk-only boot, authenticated ash/sudo, home layout, UUID filesystems, DHCP/DNS, APT policy, package install/remove and upgrade plan')
         console_layout(guest, password, output)
         result['checks'].append('TTY1 selected at boot; tty2/tty3 authenticate; kernel, console and syslog probes reach tty4 without a login there')
-        greeter_pid = greeter_recovery(guest, output)
-        result['checks'].append('greetd starts through its readiness hook and OpenRC restores the greeter after a daemon crash before login')
+        login_supervisor = text_login_recovery(guest, output)
+        result['checks'].append('agetty presents tty1 login and OpenRC restores it after a crash before authentication')
         desktop(guest, password, output, 'verification')
         result['audio'] = [audio_playback(guest, output, 'verification', recover=True)]
         result['checks'].append('Automatic PipeWire audio, process recovery, restart and non-silent emulated HDA playback')
         result['checks'].append('Ordinary-user rootless Xorg/Openbox, one panel/power manager/authentication agent, UPower, no idle screen blanking and one xfce4-terminal/ash')
         window_interactions(guest, output)
         result['checks'].append('Actual XTEST titlebar drag moves the xfce4-terminal window and Alt+F8 keyboard resizing changes its width')
-        guest.run('test "$(pgrep -P "$(cat /run/bme-greetd.pid)" -x greetd)" = ' + shlex.quote(greeter_pid))
-        result['checks'].append('The same greetd daemon remains running throughout the authenticated desktop checks')
+        guest.run('test "$(cat /run/bme-getty.tty1.pid)" = ' + shlex.quote(login_supervisor) + '; kill -0 ' + shlex.quote(login_supervisor))
+        result['checks'].append('The same text-login supervisor remains running throughout the authenticated desktop checks')
         phase('Verify desktop logout cleans up its companion processes and returns to tty1')
         record(output, 'desktop-logout.log', guest.run('''set -eu
 runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority openbox --exit
@@ -896,10 +972,10 @@ ps -t tty1 -o pid,ppid,user,comm,args
 ps -t tty1 -o user=,comm= | grep -E 'tester[[:space:]]+ash$'
 ''', timeout=90))
         result['checks'].append('Desktop logout stops Xorg, panel, power manager and authentication agent and leaves the authenticated tty1 shell')
-        phase('Verify tty1 shell logout returns to tuigreet')
+        phase('Verify tty1 shell logout returns to agetty')
         guest.qmp.type('exit\n')
-        wait_for_greeter(guest, 'Username')
-        result['checks'].append('greetd authenticates tuigreet on tty1, assigns an active seat0 and user runtime directory, and restores the greeter at shell logout')
+        wait_for_text_login(guest)
+        result['checks'].append('agetty/PAM authenticates tty1, assigns an active seat0 and user runtime directory, and restores login after shell logout')
         phase('Verify toolchain, matching kernel headers and Lua; enable tty1 auto-start for benchmark boots')
         record(output, 'development-tools.log', guest.run('''set -eu
 work=$(mktemp -d /tmp/bme-toolchain.XXXXXX)

@@ -17,6 +17,8 @@ grub-efi-amd64-bin
 grub2-common
 efibootmgr
 linux-image-amd64
+# The installer needs AMD display firmware before the target payload is extracted.
+firmware-amd-graphics
 initramfs-tools
 live-boot
 udev

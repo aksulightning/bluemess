@@ -43,5 +43,6 @@ jobs:
             out/logs/
             out/greeter-verification/*.*
             out/*packages.tsv
+            out/hardware-*.json
           retention-days: 14
           if-no-files-found: warn

@@ -7,7 +7,7 @@ command -v flatpak >/dev/null
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 # Keep Flatpak's confirmation prompt; downloading apps requires a connection.
 flatpak install --user flathub org.mozilla.firefox org.luanti.luanti \
-    org.bluesabre.MenuLibre com.valvesoftware.Steam org.gtk.Gtk3theme.Adwaita-dark
+    com.valvesoftware.Steam org.gtk.Gtk3theme.Adwaita-dark
 flatpak override --user --filesystem=xdg-download org.mozilla.firefox
 flatpak override --user --filesystem=xdg-download com.valvesoftware.Steam
 echo 'Applications are installed for this user. Log out and back in if the menu has not refreshed.'

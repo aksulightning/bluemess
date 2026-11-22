@@ -29,11 +29,20 @@ class Additions(unittest.TestCase):
             commands = (base / 'trace').read_text().splitlines()
             self.assertEqual(len(commands), 4)
             self.assertTrue(all('--user' in line for line in commands))
-            self.assertIn('com.valvesoftware.Steam', commands[1])
+            self.assertEqual(shlex.split(commands[1]), [
+                'install', '--user', 'flathub', 'org.mozilla.firefox',
+                'org.luanti.luanti', 'com.valvesoftware.Steam',
+                'org.gtk.Gtk3theme.Adwaita-dark',
+            ])
             self.assertEqual(commands[2:], [
                 'override --user --filesystem=xdg-download org.mozilla.firefox',
                 'override --user --filesystem=xdg-download com.valvesoftware.Steam',
             ])
+            (base / 'trace').unlink()
+            # Repeated setup also uses only the requested application set.
+            repeated = subprocess.run(SHELL + [script], env=env, capture_output=True)
+            self.assertEqual(repeated.returncode, 0, repeated.stderr)
+            self.assertEqual((base / 'trace').read_text().splitlines(), commands)
             (base / 'trace').unlink()
             result = subprocess.run(SHELL + [script], env=dict(env, TEST_UID='0'), capture_output=True)
             self.assertNotEqual(result.returncode, 0)

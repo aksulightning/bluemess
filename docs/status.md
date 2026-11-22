@@ -1,5 +1,86 @@
 # Implementation record
 
+## 2026-11-22: AMD installer firmware, agetty default and MenuLibre removal
+
+- Added `firmware-amd-graphics` to the separate installer manifest. The target
+  already has the AMD firmware/Mesa stack. A packaged initramfs hook includes
+  AMDGPU with its dependencies and available firmware, without forcing loading.
+  The package activates Debian's update-initramfs trigger.
+- Added an image-content checker that extracts each final initramfs, verifies
+  AMDGPU and kernel-declared Stoney firmware, handles compressed files and
+  image-local symlinks, and records storage/input modules and microcode status.
+  Both role reports are required by the delivery gate.
+- New images explicitly select agetty on tty1. Existing saved greeter choices,
+  and the legacy tuigreet fallback for installations without saved state, are
+  preserved. The official Debian binary is still installed as an option; no
+  private rebuild or speculative startup delay was introduced.
+- Retained the separate tuigreet PTY and greeter-matrix checks. The full image
+  suite now tests the approved agetty default, including supervised recovery,
+  PAM/elogind authentication, desktop/logout and the unchanged memory gate.
+- Installed-disk VM boot now uses pristine OVMF variables after offline
+  installation, verifying the EFI fallback independently of saved boot entries.
+- Removed MenuLibre from `bluemess-install-flatpaks`. Existing copies/data are
+  preserved. Tests verify the remaining application set on repeated setup.
+- Expanded snapshot validation path coverage to installer, package/config,
+  build, VM and test changes, and retained hardware reports in CI artifacts.
+- Corrected the isolated Debian greeter check to install/configure greetd and
+  verify `_greetd` before tuigreet's tmpfiles hook runs. PTY closure now reports
+  the child's exit status and terminal output, while remaining a failed check.
+  Real-PTY regression tests cover crashed and clean early exits.
+
+Local validation: 105 unit tests passed under dash. Changed Python, host shell
+and workflow syntax checks passed. BusyBox, ShellCheck, Docker and QEMU are
+unavailable in this workspace.
+
+Hosted results for image/VM code commit `c091da32704febee3e13d0fe2f788c747cfc3d77`:
+
+- [ISO build 45039630426](https://github.com/aksulightning/bluemess/actions/runs/45039630426)
+  passed. Both final image-content checks verified AMDGPU and the declared
+  Stoney firmware. The downloadable artifact remains explicitly UNTESTED.
+- [Package check 45039634746](https://github.com/aksulightning/bluemess/actions/runs/45039634746)
+  passed all 103 then-current tests under BusyBox ash and the syntax/ShellCheck
+  checks. The official tuigreet startup check failed; the isolated account
+  setup and improved failure diagnostics described above follow this result.
+- [Full snapshot run 45039634725](https://github.com/aksulightning/bluemess/actions/runs/45039634725)
+  passed USB/optical boot, offline installation, fresh-variable disk boot,
+  agetty authentication/recovery, desktop/audio, logout, package/APT and
+  development-tool checks. The first benchmark boot failed a test assumption:
+  it inspected the terminal's first child, a GTK image-loader helper, while an
+  ash child was already running. The verifier now searches all direct children
+  for the BusyBox ash process. Memory acceptance remains unmeasured.
+- [Greeter run 45039634782](https://github.com/aksulightning/bluemess/actions/runs/45039634782)
+  confirmed the default agetty desktop and preserved the active session when
+  selecting SDDM/reconfiguring the package. Its wrong-password check sent input
+  while SDDM still showed a black screen, before its theme was ready. The
+  verifier now waits for the greeter's mapped, focused X11 window instead of a
+  process plus a fixed delay. The complete SDDM/tuigreet matrix remains pending.
+
+The full-run candidate ISO SHA-256 is
+`6ede9dc59aeec44ba990a2713cce4cb20be9659698b7befb4708f0da968f8796`.
+
+[Diagnostic package run 45041157138](https://github.com/aksulightning/bluemess/actions/runs/45041157138)
+on `25d847a2bf07c9765febbc2a35e9805f34d34440` passed all 105 tests under
+BusyBox ash and static checks. Greetd created `_greetd` before tuigreet's package
+configuration, removing the missing-user warning. The actual binary still
+exited with status 1 at cursor-reply delay 0, after emitting alternate-screen
+and cursor-position requests and before drawing the login UI. Its startup
+check correctly remains failed; EIO no longer hides this result.
+
+The two VM harness corrections require fresh hosted runs. No failed candidate
+has been marked validated and no memory or optional-greeter result is waived.
+
+Known blocker: main's [Debian package check 45000548675](https://github.com/aksulightning/bluemess/actions/runs/45000548675)
+passes static checks but fails the official tuigreet PTY startup check after
+approximately two seconds. Upstream 0.9.1 initializes its event reader before
+the terminal; Debian still lists 0.9.1-7. The agetty default is a product fallback,
+not evidence that this package bug is fixed. The full optional greeter matrix
+continues to exercise tuigreet after agetty and SDDM.
+
+HP/Libreboot hardware acceptance is **not run**. Its exact firmware payload,
+GPU/controller IDs and failing stage remain unconfirmed. See the
+[hardware acceptance record](hardware/hp-chromebook-11a-g8-ee.md). No legacy BIOS
+installation path or global `nomodeset`/ACPI workaround was added.
+
 ## 2026-11-21: return to official Debian tuigreet and refresh the snapshot
 
 Rechecked Debian's archive timestamp API and pinned the latest available

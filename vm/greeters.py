@@ -2,13 +2,48 @@
 import shlex
 import time
 
-from verify import Failure, audio_playback, desktop, greeter_recovery, phase, record, wait_for_greeter, wait_for_service
+from verify import Failure, audio_playback, desktop, greeter_recovery, phase, record, text_login_recovery, wait_for_greeter, wait_for_service
 
 
 def reboot_as_root(guest, password):
     guest.reboot()
     guest.login('tester', password)
     guest.root(password)
+
+
+def wait_for_sddm_window(guest):
+    # A running Qt process can still be loading its theme with a black screen.
+    # Wait for its mapped, focused window before sending any login keystrokes.
+    environment = guest.run('''set -eu
+pid=$(pgrep -u sddm -f '^/usr/bin/sddm-greeter')
+printf 'PID=%s\\n' "$pid"
+tr '\\000' '\\n' < /proc/"$pid"/environ | grep -E '^(DISPLAY|XAUTHORITY)='
+''')
+    values = dict(line.split('=', 1) for line in environment.splitlines())
+    if set(values) != {'PID', 'DISPLAY', 'XAUTHORITY'} or not values['PID'].isdigit():
+        raise Failure('SDDM greeter lacks one PID and its X11 authentication environment')
+    pid = values.pop('PID')
+    xenv = 'runuser -u sddm -- env ' + ' '.join(shlex.quote(k + '=' + v) for k, v in values.items()) + ' '
+    focus = '''import ctypes
+x = ctypes.CDLL('libX11.so.6')
+x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+x.XOpenDisplay.restype = ctypes.c_void_p
+x.XGetInputFocus.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int)]
+x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+display = x.XOpenDisplay(None)
+assert display, 'Cannot open the greeter display'
+window, revert = ctypes.c_ulong(), ctypes.c_int()
+x.XGetInputFocus(display, ctypes.byref(window), ctypes.byref(revert))
+x.XCloseDisplay(display)
+print(hex(window.value) if window.value > 1 else '')
+'''
+    return guest.run('set -eu\nn=0\nwhile :; do\n' +
+                     'window=$(' + xenv + 'python3 -c ' + shlex.quote(focus) + ')\n' +
+                     'if [ -n "$window" ] && ' + xenv + 'xprop -id "$window" _NET_WM_PID | grep -Eq ' +
+                     shlex.quote(' = ' + pid + '$') + ' && ' +
+                     xenv + 'xwininfo -id "$window" | grep -q "Map State: IsViewable"; then\n' +
+                     '    printf "SDDM window ready: %s\\n" "$window"; break\nfi\n' +
+                     'n=$((n+1)); test "$n" -le 90; sleep 1\ndone', timeout=120)
 
 
 def sddm_prompt(guest, output, suffix):
@@ -23,7 +58,7 @@ until pgrep -u sddm -f '^/usr/bin/sddm-greeter' >/dev/null; do
 done
 ! pgrep -u tester -x openbox
 ''', timeout=120)
-    time.sleep(3)
+    record(output, f'sddm-{suffix}-ready.log', wait_for_sddm_window(guest))
     guest.qmp.command('screendump', {'filename': str(output / f'sddm-{suffix}.ppm')})
 
 
@@ -88,24 +123,25 @@ done
 
 def verify_choices(guest, password, output, result):
     import autostart
-    phase('Verify default tuigreet, then save SDDM while the desktop is active')
-    greeter_recovery(guest, output)
+    phase('Verify default agetty, then save SDDM while the desktop is active')
+    text_login_recovery(guest, output)
     desktop(guest, password, output, 'greeter-default')
     autostart.prepare(guest, output)
     record(output, 'switch-active-desktop.log', guest.run('''set -eu
 pid=$(pgrep -u tester -x openbox)
 bluemess-greeter-switcher sddm
 test "$(pgrep -u tester -x openbox)" = "$pid"
-rc-service greetd status
+rc-service bme-getty.tty1 status
 ! rc-service sddm status
 # Exercise the real package maintainer path, preserving selection and session.
 dpkg-reconfigure -f noninteractive bme-config
 test "$(cat /etc/blue-mess/greeter)" = sddm
 test "$(pgrep -u tester -x openbox)" = "$pid"
 test ! -L /etc/runlevels/default/greetd
+test ! -L /etc/runlevels/default/bme-getty.tty1
 test "$(readlink /etc/runlevels/default/sddm)" = /etc/init.d/sddm
 ''', timeout=180))
-    result['checks'].append('Default tuigreet authenticates and starts the desktop; choosing SDDM and reconfiguring the package preserve the active session')
+    result['checks'].append('Default agetty authenticates and starts the desktop; choosing SDDM and reconfiguring the package preserve the active session')
     reboot_as_root(guest, password)
     autostart.check_boot(guest, output, 1)
     sddm_prompt(guest, output, 'first-boot')
@@ -161,4 +197,8 @@ n=0; until grep -aq 'login:' /dev/vcs1; do n=$((n+1)); test "$n" -le 60; sleep 1
     wait_for_greeter(guest, 'Username')
     guest.run('rc-service greetd status; test ! -L /etc/runlevels/default/sddm; test ! -L /etc/runlevels/default/bme-getty.tty1')
     result['checks'].append('Switching back restores tuigreet without competing tty1 services')
+    # Keep the optional Debian greeter's real startup/recovery/authentication test.
+    # A failure here remains visible even though new images use agetty.
+    greeter_recovery(guest, output)
+    desktop(guest, password, output, 'optional-tuigreet', greeter='tuigreet')
     guest.poweroff()

@@ -109,9 +109,10 @@ echo 'status: started'
         guest = Mock()
         guest.run.side_effect = lambda *args, **kwargs: events.append('assertions')
         with patch.object(greeters, 'wait_for_service', side_effect=lambda *args: events.append(args[1])), \
-                patch.object(greeters.time, 'sleep'):
+                patch.object(greeters, 'wait_for_sddm_window', return_value='window ready') as ready:
             greeters.sddm_prompt(guest, self.root, 'test')
         self.assertEqual(events, ['sddm', 'assertions'])
+        ready.assert_called_once_with(guest)
 
 
 if __name__ == '__main__':

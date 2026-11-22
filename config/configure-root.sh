@@ -32,9 +32,7 @@ done
 ln -s /etc/init.d/bme-mount-ro "$root/etc/runlevels/shutdown/bme-mount-ro"
 for port in tty1 tty2 tty3 ttyS0; do
     ln -sfn /etc/init.d/bme-getty "$root/etc/init.d/bme-getty.$port"
-    if [ "$port" != tty1 ] || [ "$role" = installer ]; then
-        ln -s "/etc/init.d/bme-getty.$port" "$root/etc/runlevels/default/bme-getty.$port"
-    fi
+    ln -s "/etc/init.d/bme-getty.$port" "$root/etc/runlevels/default/bme-getty.$port"
 done
 cat >> "$root/etc/rc.conf" <<'RC'
 # Blue Mess native OpenRC PID 1; individual services have explicit dependencies.
@@ -52,12 +50,14 @@ if [ "$role" = installer ]; then
 fi
 if [ "$role" = target ]; then
     ln -s /etc/init.d/bme-autostart "$root/etc/runlevels/default/bme-autostart"
-    mkdir -p "$root/var/lib/blue-mess"
+    mkdir -p "$root/var/lib/blue-mess" "$root/etc/blue-mess"
     touch "$root/var/lib/blue-mess/autostart-integrated"
     # Select the packaged Debian wrapper only while constructing a new image.
     chroot "$root" update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper
     test -x "$root/etc/init.d/greetd"
-    ln -s /etc/init.d/greetd "$root/etc/runlevels/default/greetd"
+    # New images use the working text login. Package upgrades continue to sync
+    # their saved selection; greeter-common retains the legacy tuigreet fallback.
+    printf 'agetty\n' > "$root/etc/blue-mess/greeter"
     chroot "$root" /usr/bin/bluemess-greeter-switcher --sync
     sed -i 's/^CriticalPowerAction=.*/CriticalPowerAction=PowerOff/' "$root/etc/UPower/UPower.conf"
 fi
