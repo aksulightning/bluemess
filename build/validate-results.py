@@ -12,9 +12,20 @@ for name in ('SHA256SUMS', 'target-packages.tsv', 'installer-packages.tsv',
              'build-tools.tsv', 'build-metadata.json', 'build-metadata.txt',
              'builder-image.json', 'repositories.list', 'logs/build.log',
              'logs/iso-layout.log', 'verification/report.md',
-             'verification/installer-engine.log', 'verification/memory.json'):
+             'verification/installer-engine.log', 'verification/memory.json',
+             'hardware-installer.json', 'hardware-target.json',
+             'verification/fresh-uefi-variables.json', 'verification/efi-fallback.log'):
     if not (out / name).is_file() or (out / name).stat().st_size == 0:
         raise SystemExit(f'Required artifact missing or empty: {name}')
+for role in ('installer', 'target'):
+    hardware = json.loads((out / f'hardware-{role}.json').read_text())
+    if (hardware.get('status') != 'passed' or hardware.get('role') != role
+            or hardware.get('profile') != 'amdgpu-stoney' or not hardware.get('kernels')
+            or any(not kernel.get('firmware') for kernel in hardware['kernels'])):
+        raise SystemExit(f'{role} AMDGPU image-content verification failed')
+variables = json.loads((out / 'verification/fresh-uefi-variables.json').read_text())
+if variables.get('reset_after_installation') is not True:
+    raise SystemExit('Installed disk was not tested with fresh UEFI variables')
 verification = json.loads((out / 'verification/results.json').read_text())
 if verification.get('status') != 'passed':
     raise SystemExit('VM verification is incomplete or failed')

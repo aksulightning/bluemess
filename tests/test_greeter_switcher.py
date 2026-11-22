@@ -86,6 +86,10 @@ exec /bin/mv "$@"
                     self.selected(choice)
         self.assertFalse(self.trace.exists(), 'Selection must not stop/start/restart services')
 
+    def test_upgrade_without_saved_selection_keeps_legacy_tuigreet(self):
+        self.assertEqual(self.run_command('--sync').returncode, 0)
+        self.selected('tuigreet')
+
     def test_status_distinguishes_running_service_from_next_boot(self):
         self.assertEqual(self.run_command('sddm').returncode, 0)
         status = self.run_command('status', RUNNING='greetd', FAKE_UID='1000')

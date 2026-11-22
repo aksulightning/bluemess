@@ -64,9 +64,10 @@ bootstrap() {
         [[ -L $root/etc/runlevels/default/network-manager ]]
         [[ ! -L $root/etc/runlevels/default/bme-network ]]
         chroot "$root" /usr/lib/blue-mess/sddm-check
-        chroot "$root" /usr/bin/bluemess-greeter-switcher status | grep -x 'Next boot: tuigreet'
+        chroot "$root" /usr/bin/bluemess-greeter-switcher status | grep -x 'Next boot: agetty'
         [[ ! -L $root/etc/runlevels/default/sddm ]]
-        [[ ! -L $root/etc/runlevels/default/bme-getty.tty1 ]]
+        [[ ! -L $root/etc/runlevels/default/greetd ]]
+        [[ $(readlink "$root/etc/runlevels/default/bme-getty.tty1") == /etc/init.d/bme-getty.tty1 ]]
         grep -Eq '^[[:space:]]*@include[[:space:]]+common-session[[:space:]]*$' "$root/etc/pam.d/sddm"
         grep -Eq '^[[:space:]]*@include[[:space:]]+common-session[[:space:]]*$' "$root/etc/pam.d/sddm-greeter"
         for program in pipewire pw-cli pw-play pipewire-pulse wireplumber wpctl pactl pavucontrol; do
@@ -118,6 +119,7 @@ bootstrap() {
         echo 'Unexpected systemd manager installed' >&2; exit 1
     fi
     chroot "$root" update-initramfs -u -k all
+    python3 build/check-hardware-image.py "$root" --role "$role" --output "out/hardware-$role.json"
     rm -f "$root/usr/sbin/policy-rc.d" "$root"/tmp/*.deb
     : > "$root/etc/machine-id"
     rm -f "$root/var/lib/dbus/machine-id" "$root/var/lib/urandom/random-seed" "$root/var/lib/misc/random-seed" "$root/var/lib/blue-mess/random-seed"

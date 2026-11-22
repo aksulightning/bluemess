@@ -13,7 +13,7 @@ Debian. Sources: [asennus-low.sh](https://gitlab.com/aksulightning/toerkylaari/-
 | File/desktop/media tools | Thunar/GVfs, Mousepad, screenshot, GIMP, K3b, OBS, VLC, archive tools, GParted, Disks, udisks2 |
 | GPU utilities and AMD firmware | Debian Mesa/Vulkan, firmware-amd-graphics, Xorg AMD driver, pciutils and usbutils; existing GPU helper retained |
 | Podman | podman, uidmap, slirp4netns and fuse-overlayfs; cgroupfs and file events for OpenRC |
-| Flatpak apps | Explicit per-user online `bluemess-install-flatpaks`; Firefox, Luanti, MenuLibre, Steam and GTK theme |
+| Flatpak apps | Explicit per-user online `bluemess-install-flatpaks`; Firefox, Luanti, Steam and GTK theme |
 | Flatpak menu entries | Standard user/system export directories in XDG_DATA_DIRS; no copied launchers or dbus-launch wrappers |
 | Shutdown, restart, logout launchers and shell aliases | Elogind/polkit for power actions; Openbox exits only the current session |
 | Locale and keyboard | Existing installer prompts, including Finnish; no forced global locale |
@@ -49,6 +49,8 @@ services together. To undo, remove network-manager from its runlevel, restore
 bme-network and its configuration, and reboot.
 
 Run `bluemess-install-flatpaks` as the ordinary desktop user, without sudo.
+MenuLibre is no longer installed by this helper. Existing copies and menu
+configuration are preserved; there is no replacement or automatic uninstall.
 Flatpak asks for confirmation and uses the user's Flathub remote. Its packages
 receive per-user Downloads access through the standard xdg-download permission.
 New-account ash defaults also provide reboot/poweroff aliases via loginctl.

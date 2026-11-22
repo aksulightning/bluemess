@@ -87,6 +87,24 @@ your kernel or that graphics, login or device permissions work on your hardware.
 
 ## AMD: Debian packages
 
+New images include `firmware-amd-graphics` in both the live installer and the
+installed payload. The packaged `blue-mess-amdgpu` initramfs hook copies the
+stock AMDGPU module, dependencies and available firmware using Debian's
+`manual_add_modules`; it does not force the driver to load on other hardware.
+The package activates Debian's update-initramfs trigger when this hook changes.
+The target already includes the Mesa/Xorg AMD stack. An online preparation step
+is not required just to supply that stack on a new installation.
+
+After the final initramfs update, image construction extracts each initramfs and
+checks AMDGPU and all Stoney Ridge firmware declared by that kernel. It handles
+usrmerge, image-local symlinks and `.xz`/`.zst` files. The resulting
+`hardware-installer.json` and `hardware-target.json` also inventory USB, MMC and
+input modules and report whether `amd64-microcode` is installed. That inventory
+does not establish the exact controller requirements or physical compatibility.
+See [HP Chromebook acceptance](hardware/hp-chromebook-11a-g8-ee.md).
+
+The preparation helper remains available for older installations and updates:
+
 The AMD path installs `firmware-amd-graphics`, `libgl1-mesa-dri`, `libglx-mesa0`,
 `mesa-vulkan-drivers`, and `xserver-xorg-video-amdgpu` through APT, then rebuilds
 initramfs. Reboot afterward. No AMD `.run` installer is needed for this path.

@@ -2,10 +2,13 @@ name: Verify refreshed Debian snapshot
 on:
   pull_request:
     paths:
-      - 'build/inputs.env'
-      - 'build/Dockerfile'
-      - 'build/build.sh'
+      - 'build/**'
       - 'manifests/**'
+      - 'installer/**'
+      - 'packages/**'
+      - 'config/**'
+      - 'vm/**'
+      - 'tests/**'
       - '.github/workflows/snapshot-validation.yml'
   workflow_dispatch:
 permissions:
@@ -45,6 +48,7 @@ jobs:
             out/verification/*.*
             out/*metadata*
             out/*packages.tsv
+            out/hardware-*.json
             out/builder-image.json
             out/repositories.list
           retention-days: 14

@@ -13,13 +13,17 @@ once-per-boot records. See [setup, status, retries and limits](docs/autostart.md
 
 Images install Debian's official `tuigreet` 0.9.1-7 from the signed
 20261121T023257Z Sid snapshot. The temporary `tuigreet-bme` build and local
-patches are retired; greetd remains the default. See
+patches are retired. New images use agetty text login because the official
+tuigreet still fails its startup check. Existing installations retain their
+saved login-manager choice. See
 [package selection, existing-system migration and validation](docs/tuigreet.md).
 
 New installations use NetworkManager with a tray applet and nmtui. The desktop
 includes the native tools from the original Alpine scripts. Run
 `bluemess-install-flatpaks` as your ordinary user to add their Flatpak apps
-online. See [script coverage and existing-system migration](docs/script-parity.md).
+online: Firefox, Luanti, Steam and the Adwaita-dark GTK theme. MenuLibre is no
+longer included in setup; existing user installations are preserved.
+See [script coverage and existing-system migration](docs/script-parity.md).
 These additions require fresh VM/hardware and memory validation.
 
 ## Login-manager choices
@@ -27,8 +31,8 @@ These additions require fresh VM/hardware and memory validation.
 Run `sudo bluemess-greeter-switcher` for a three-option menu, or select directly:
 
 ```sh
-sudo bluemess-greeter-switcher tuigreet  # default, authenticated text greeter
-sudo bluemess-greeter-switcher agetty    # traditional text login
+sudo bluemess-greeter-switcher tuigreet  # optional; known startup failure in the pinned version
+sudo bluemess-greeter-switcher agetty    # default on new images, authenticated text login
 sudo bluemess-greeter-switcher sddm      # graphical Blue Mess login
 bluemess-greeter-switcher status
 ```
@@ -50,7 +54,7 @@ package before selecting SDDM. See [greeter troubleshooting](docs/troubleshootin
 
 
 A minimal Debian Sid amd64 desktop using **native OpenRC**, BusyBox ash, Xorg,
-standalone Openbox, an XFCE panel and power manager, and XFCE Terminal. Greetd/tuigreet
+standalone Openbox, an XFCE panel and power manager, and XFCE Terminal. Agetty
 provides console login on tty1, then `bluemess-desktop start` opens the desktop.
 Desktop auto-start is an explicit per-user setting; normal password login remains.
 
@@ -133,7 +137,7 @@ copy the live environment. Logs appear at the path printed by the installer and
 are also copied to `/var/log/blue-mess/install.log` on success.
 
 After completion, shut down, remove the installation medium, and boot the disk.
-Sign in at the tuigreet prompt on tty1 with the created account. It opens a
+Sign in at the text login prompt on tty1 with the created account. It opens a
 BusyBox ash login shell. Run `bluemess-desktop start` (or `startx`) to open
 the desktop. tty2 and tty3 provide console logins; tty4 displays diagnostics
 and has no login prompt. No other numbered TTY has a login service. The serial
@@ -189,7 +193,12 @@ local development and later driver installation. Debian's Openbox package
 requires Python 3, so it remains installed as a dependency. No NVIDIA driver is
 installed automatically.
 
-Before installing GPU drivers, run `sudo bluemess-prepare-gpu-install` and
+New images include AMD graphics firmware in both the installer and installed
+system, with AMDGPU available in initramfs. The target also includes Mesa.
+See the [HP Chromebook/Libreboot acceptance record](docs/hardware/hp-chromebook-11a-g8-ee.md)
+for the remaining physical-device validation.
+
+For older images or separate GPU preparation, run `sudo bluemess-prepare-gpu-install` and
 select NVIDIA or AMD. Confirm that system updates have been installed first.
 The NVIDIA path prepares dependencies for the vendor `.run` installer, blocks
 APT-managed NVIDIA packages, and disables Nouveau for the next boot. Reboot

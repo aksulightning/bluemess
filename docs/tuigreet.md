@@ -6,8 +6,11 @@ same snapshot. `build/inputs.env` records the expected version; image assembly
 checks that the installed package matches and that `tuigreet-bme` is absent.
 No local tuigreet patches or Rust package build are applied.
 
-The command remains `/usr/bin/tuigreet`; greetd, PAM, the selected login manager
-and the native OpenRC integration keep their existing configuration. The
+The command remains `/usr/bin/tuigreet`. New images explicitly select agetty
+text login while this Debian version has a known startup failure. The packaged
+greetd/PAM configuration remains available for the optional tuigreet choice.
+Upgrades preserve saved selections; older installations without a selection
+file retain their legacy tuigreet behavior. The
 switcher option is `tuigreet`, not the former package name `tuigreet-bme`.
 
 ## Existing installations
@@ -51,7 +54,7 @@ The package workflow installs the official binary with signature verification
 and runs `build/check-tuigreet-pty.py`. It retains the delayed cursor replies,
 keyboard/session IPC and clean-exit checks; failures remain failures. The
 greeter workflow exercises the real login-manager transitions. The snapshot
-workflow runs the full offline installation, desktop and three-boot memory
+workflow tests the agetty default and runs the full offline installation, desktop and three-boot memory
 suite on disposable QEMU disks. Neither replaces testing on the affected
 OptiPlex/Quadro T400. Actual outcomes are recorded in [status.md](status.md).
 

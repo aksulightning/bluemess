@@ -20,12 +20,19 @@ class DeliveryGate(unittest.TestCase):
         for name in ('SHA256SUMS', 'target-packages.tsv', 'installer-packages.tsv',
                      'build-tools.tsv', 'build-metadata.txt', 'builder-image.json',
                      'repositories.list', 'logs/build.log', 'logs/iso-layout.log',
-                     'verification/report.md', 'verification/installer-engine.log'):
+                     'verification/report.md', 'verification/installer-engine.log',
+                     'verification/efi-fallback.log'):
             p = root / name
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text('test fixture\n')
         (root / 'fixture.iso').write_bytes(b'synthetic fixture, not an ISO')
         (root / 'build-metadata.json').write_text('{"validated": false}')
+        for role in ('installer', 'target'):
+            (root / f'hardware-{role}.json').write_text(json.dumps({
+                'status': 'passed', 'role': role, 'profile': 'amdgpu-stoney',
+                'kernels': [{'firmware': [{'name': 'amdgpu/stoney_ce.bin'}]}]}))
+        (root / 'verification/fresh-uefi-variables.json').write_text(json.dumps({
+            'reset_after_installation': True}))
         (root / 'verification/audio.wav').write_bytes(b'synthetic playback fixture' * 4)
         (root / 'verification/results.json').write_text(json.dumps({
             'status': 'passed', 'iso': 'fixture.iso',
@@ -61,6 +68,18 @@ class DeliveryGate(unittest.TestCase):
             self.prepare(root)
             (root / 'target-packages.tsv').unlink()
             self.assertNotEqual(self.run_gate(root).returncode, 0)
+
+    def test_hardware_or_fresh_firmware_failure_cannot_publish(self):
+        cases = [('hardware-installer.json', {'status': 'failed'}),
+                 ('hardware-target.json', {'status': 'passed', 'role': 'target',
+                                           'profile': 'amdgpu-stoney', 'kernels': []}),
+                 ('verification/fresh-uefi-variables.json', {'reset_after_installation': False})]
+        for name, data in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.prepare(root)
+                (root / name).write_text(json.dumps(data))
+                self.assertNotEqual(self.run_gate(root).returncode, 0)
 
     def test_missing_or_silent_audio_cannot_publish(self):
         for captures in ([], [{'passed': True, 'audible_samples': 0}] * 4):

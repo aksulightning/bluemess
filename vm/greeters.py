@@ -2,7 +2,7 @@
 import shlex
 import time
 
-from verify import Failure, audio_playback, desktop, greeter_recovery, phase, record, wait_for_greeter, wait_for_service
+from verify import Failure, audio_playback, desktop, greeter_recovery, phase, record, text_login_recovery, wait_for_greeter, wait_for_service
 
 
 def reboot_as_root(guest, password):
@@ -88,24 +88,25 @@ done
 
 def verify_choices(guest, password, output, result):
     import autostart
-    phase('Verify default tuigreet, then save SDDM while the desktop is active')
-    greeter_recovery(guest, output)
+    phase('Verify default agetty, then save SDDM while the desktop is active')
+    text_login_recovery(guest, output)
     desktop(guest, password, output, 'greeter-default')
     autostart.prepare(guest, output)
     record(output, 'switch-active-desktop.log', guest.run('''set -eu
 pid=$(pgrep -u tester -x openbox)
 bluemess-greeter-switcher sddm
 test "$(pgrep -u tester -x openbox)" = "$pid"
-rc-service greetd status
+rc-service bme-getty.tty1 status
 ! rc-service sddm status
 # Exercise the real package maintainer path, preserving selection and session.
 dpkg-reconfigure -f noninteractive bme-config
 test "$(cat /etc/blue-mess/greeter)" = sddm
 test "$(pgrep -u tester -x openbox)" = "$pid"
 test ! -L /etc/runlevels/default/greetd
+test ! -L /etc/runlevels/default/bme-getty.tty1
 test "$(readlink /etc/runlevels/default/sddm)" = /etc/init.d/sddm
 ''', timeout=180))
-    result['checks'].append('Default tuigreet authenticates and starts the desktop; choosing SDDM and reconfiguring the package preserve the active session')
+    result['checks'].append('Default agetty authenticates and starts the desktop; choosing SDDM and reconfiguring the package preserve the active session')
     reboot_as_root(guest, password)
     autostart.check_boot(guest, output, 1)
     sddm_prompt(guest, output, 'first-boot')
@@ -161,4 +162,8 @@ n=0; until grep -aq 'login:' /dev/vcs1; do n=$((n+1)); test "$n" -le 60; sleep 1
     wait_for_greeter(guest, 'Username')
     guest.run('rc-service greetd status; test ! -L /etc/runlevels/default/sddm; test ! -L /etc/runlevels/default/bme-getty.tty1')
     result['checks'].append('Switching back restores tuigreet without competing tty1 services')
+    # Keep the optional Debian greeter's real startup/recovery/authentication test.
+    # A failure here remains visible even though new images use agetty.
+    greeter_recovery(guest, output)
+    desktop(guest, password, output, 'optional-tuigreet', greeter='tuigreet')
     guest.poweroff()

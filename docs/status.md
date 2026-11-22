@@ -1,5 +1,45 @@
 # Implementation record
 
+## 2026-11-22: AMD installer firmware, agetty default and MenuLibre removal
+
+- Added `firmware-amd-graphics` to the separate installer manifest. The target
+  already has the AMD firmware/Mesa stack. A packaged initramfs hook includes
+  AMDGPU with its dependencies and available firmware, without forcing loading.
+  The package activates Debian's update-initramfs trigger.
+- Added an image-content checker that extracts each final initramfs, verifies
+  AMDGPU and kernel-declared Stoney firmware, handles compressed files and
+  image-local symlinks, and records storage/input modules and microcode status.
+  Both role reports are required by the delivery gate.
+- New images explicitly select agetty on tty1. Existing saved greeter choices,
+  and the legacy tuigreet fallback for installations without saved state, are
+  preserved. The official Debian binary is still installed as an option; no
+  private rebuild or speculative startup delay was introduced.
+- Retained the separate tuigreet PTY and greeter-matrix checks. The full image
+  suite now tests the approved agetty default, including supervised recovery,
+  PAM/elogind authentication, desktop/logout and the unchanged memory gate.
+- Installed-disk VM boot now uses pristine OVMF variables after offline
+  installation, verifying the EFI fallback independently of saved boot entries.
+- Removed MenuLibre from `bluemess-install-flatpaks`. Existing copies/data are
+  preserved. Tests verify the remaining application set on repeated setup.
+- Expanded snapshot validation path coverage to installer, package/config,
+  build, VM and test changes, and retained hardware reports in CI artifacts.
+
+Local validation: 103 unit tests passed under dash. Changed Python and host
+shell syntax checks passed. BusyBox, ShellCheck, Docker and QEMU are unavailable
+in this workspace; hosted image/runtime validation is pending.
+
+Known blocker: main's [Debian package check 45000548675](https://github.com/aksulightning/bluemess/actions/runs/45000548675)
+passes static checks but fails the official tuigreet PTY startup check after
+approximately two seconds. Upstream 0.9.1 initializes its event reader before
+the terminal; Debian still lists 0.9.1-7. The agetty default is a product fallback,
+not evidence that this package bug is fixed. The full optional greeter matrix
+continues to exercise tuigreet after agetty and SDDM.
+
+HP/Libreboot hardware acceptance is **not run**. Its exact firmware payload,
+GPU/controller IDs and failing stage remain unconfirmed. See the
+[hardware acceptance record](hardware/hp-chromebook-11a-g8-ee.md). No legacy BIOS
+installation path or global `nomodeset`/ACPI workaround was added.
+
 ## 2026-11-21: return to official Debian tuigreet and refresh the snapshot
 
 Rechecked Debian's archive timestamp API and pinned the latest available
