@@ -32,9 +32,10 @@ installation, desktop and three-boot memory suite for pull requests that change
 build inputs, manifests, installer, packages, configuration, VM verification
 or tests. It preserves diagnostics and does not
 publish a release. Both workflows also support manual dispatch.
-`.github/workflows/package-validation.yml` installs and tests the official
-Debian tuigreet binary; it no longer builds a local replacement package.
-That optional greeter check retains its known failure. The full image suite
+The standalone Debian tuigreet package workflow is disabled and archived at
+`.github/oldworkflows/package-validation.yml`. Its definition and
+`build/check-tuigreet-pty.py` remain available for manual investigation; the
+known binary startup failure is recorded in `docs/status.md`. The full image suite
 now authenticates through agetty, the new-image default. The focused greeter
 matrix tests agetty and SDDM before attempting the optional tuigreet path.
 To run that matrix locally after building the candidate, use:

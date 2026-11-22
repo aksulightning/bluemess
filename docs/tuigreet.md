@@ -50,7 +50,10 @@ the official Debian binary, not a claim that the reported greeter bugs are fixed
 [Debian #1153617](https://bugs.debian.org/1153617) reports the startup race in
 0.9.1-7; its status was pending when checked on 2026-11-21.
 
-The package workflow configures `greetd` and verifies its `_greetd` account before
+The standalone package workflow is disabled, at the user's request, and archived
+at `.github/oldworkflows/package-validation.yml`. It no longer runs on pushes or
+pull requests. The retained workflow definition configures `greetd` and verifies
+its `_greetd` account before
 installing the official tuigreet binary with signature verification. This avoids
 a missing-user warning from tuigreet's tmpfiles configuration in the isolated
 test container. It then runs `build/check-tuigreet-pty.py`, which reports the

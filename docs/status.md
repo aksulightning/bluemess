@@ -1,5 +1,19 @@
 # Implementation record
 
+## 2026-11-22: disable standalone tuigreet package validation
+
+At the user's request, moved `.github/workflows/package-validation.yml` to
+`.github/oldworkflows/package-validation.yml`, following the existing workflow
+archive convention. GitHub no longer discovers it as an executable workflow.
+The PTY diagnostic script and archived definition remain available. Disabling
+the workflow does not repair the pinned Debian binary's startup failure or
+change the agetty default. ISO construction, the full snapshot VM suite and
+the login-manager matrix retain their existing definitions.
+
+Validation: the active workflow directory no longer contains the package
+workflow; the archived YAML is unchanged and parses successfully. Previous
+run results remain in the implementation record below.
+
 ## 2026-11-22: AMD installer firmware, agetty default and MenuLibre removal
 
 - Added `firmware-amd-graphics` to the separate installer manifest. The target
