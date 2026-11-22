@@ -30,6 +30,9 @@ jobs:
           set -o pipefail
           docker run --rm -e TUIGREET_VERSION="$TUIGREET_VERSION" -v "$PWD:/src" bme-builder -euo pipefail -c '
             apt-get update
+            # Configure the real account owner before tuigreet runs tmpfiles.
+            apt-get install -y --no-install-recommends greetd
+            getent passwd _greetd
             apt-get install -y --no-install-recommends "tuigreet=$TUIGREET_VERSION"
             test "$(dpkg-query -W -f='\''${db:Status-Status} ${Version}'\'' tuigreet)" = "installed $TUIGREET_VERSION"
             python3 build/check-tuigreet-pty.py /usr/bin/tuigreet
