@@ -17,6 +17,13 @@ by each shipped kernel in both roots and extracted initramfs images. They also
 inventory USB/MMC/input modules and AMD microcode package status. Inspect that
 inventory against the actual controllers; it is not a blanket driver guarantee.
 
+The first hosted content audit passed with kernel `7.3.5+deb14-amd64` and
+`firmware-amd-graphics` `20261019-1`: all eight declared Stoney files were
+present in both final initramfs images. The audited USB, MMC/SDHCI and input
+modules were also present. The target inventory confirmed Mesa `26.2.6-1` and
+the AMDGPU Xorg driver `25.0.0-1`. See [the validation record](../status.md)
+for source commits, candidate checksums and runtime outcomes.
+
 New targets use agetty text login on tty1. This avoids the known default-startup
 failure of the pinned Debian tuigreet binary; it does not repair tuigreet.
 Existing users retain their selection. The optional greeter tests remain in
@@ -26,7 +33,7 @@ Record these fields with the candidate's test evidence:
 
 | Field | Result |
 | --- | --- |
-| Source commit / ISO SHA-256 | Pending candidate build |
+| Source commit / ISO SHA-256 | Automated candidates recorded in status.md; physical-test image not selected |
 | Board identity / GPU and storage PCI IDs | Not collected |
 | Libreboot version / payload / UEFI mode | Not collected |
 | Kernel / firmware package versions | Build reports; hardware confirmation pending |

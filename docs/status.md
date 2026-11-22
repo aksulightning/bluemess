@@ -80,8 +80,38 @@ exited with status 1 at cursor-reply delay 0, after emitting alternate-screen
 and cursor-position requests and before drawing the login UI. Its startup
 check correctly remains failed; EIO no longer hides this result.
 
-The two VM harness corrections require fresh hosted runs. No failed candidate
-has been marked validated and no memory or optional-greeter result is waived.
+The corrected [greeter run 45041978292](https://github.com/aksulightning/bluemess/actions/runs/45041978292)
+on `88c6deb05844c4e7f0c3bc765cdfc7ace3b896cc` passed SDDM wrong-password
+rejection, real desktop/audio authentication, repeated login/logout, another
+reboot, root/user autostart checks and switching back to agetty. It then failed
+only when waiting for the optional tuigreet Username prompt. The SDDM readiness
+correction is therefore exercised in the real VM; the Debian greeter defect
+remains visible. Its candidate ISO SHA-256 is
+`9f295e0fa6170d2d4c372782b52366e010510e3d07a78d705713ed190305542e`.
+
+The corrected [full snapshot run 45041978168](https://github.com/aksulightning/bluemess/actions/runs/45041978168)
+on the same code completed all functional assertions: USB and optical boot,
+offline installation, fresh-variable disk boot, console authentication and
+recovery, networking/APT, desktop interaction, logout, development tools, all
+four audible playback captures, three real reboots and clean poweroff.
+The terminal-child readiness correction passed on every benchmark boot.
+
+RAM acceptance **failed** on all three boots with the existing 350 MiB limit,
+the normal delivered services and zero swap use:
+
+| Boot | MemTotal (KiB) | MemAvailable (KiB) | Used (MiB, unrounded) | Swap used (KiB) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 979364 | 567820 | 401.8984375 | 0 |
+| 2 | 979364 | 564968 | 404.68359375 | 0 |
+| 3 | 979364 | 573748 | 396.109375 | 0 |
+
+The exact PR-merge build source is `c60f1551c190cff626e3e8f7f540499c68534893`
+(feature head `88c6deb05844c4e7f0c3bc765cdfc7ace3b896cc`). Its ISO SHA-256 is
+`84892e1cdfaa43cd50f24cee563b04ce476fb439eb8e6f0b6c14c37e0fd875b5`.
+Build metadata retains `validated: false`; raw memory and process PSS evidence
+are retained in the run artifact. Memory acceptance remains a separate blocker.
+The limit and normal services were not changed, and no failed candidate has
+been marked validated. The reported physical HP compatibility remains unverified.
 
 Known blocker: main's [Debian package check 45000548675](https://github.com/aksulightning/bluemess/actions/runs/45000548675)
 passes static checks but fails the official tuigreet PTY startup check after
