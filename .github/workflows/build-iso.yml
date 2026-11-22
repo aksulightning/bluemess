@@ -81,6 +81,7 @@ jobs:
           path: |
             out/logs/
             out/build-metadata.*
+            out/hardware-*.json
           compression-level: 6
           retention-days: 14
           if-no-files-found: warn

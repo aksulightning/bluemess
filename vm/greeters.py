@@ -11,6 +11,41 @@ def reboot_as_root(guest, password):
     guest.root(password)
 
 
+def wait_for_sddm_window(guest):
+    # A running Qt process can still be loading its theme with a black screen.
+    # Wait for its mapped, focused window before sending any login keystrokes.
+    environment = guest.run('''set -eu
+pid=$(pgrep -u sddm -f '^/usr/bin/sddm-greeter')
+printf 'PID=%s\\n' "$pid"
+tr '\\000' '\\n' < /proc/"$pid"/environ | grep -E '^(DISPLAY|XAUTHORITY)='
+''')
+    values = dict(line.split('=', 1) for line in environment.splitlines())
+    if set(values) != {'PID', 'DISPLAY', 'XAUTHORITY'} or not values['PID'].isdigit():
+        raise Failure('SDDM greeter lacks one PID and its X11 authentication environment')
+    pid = values.pop('PID')
+    xenv = 'runuser -u sddm -- env ' + ' '.join(shlex.quote(k + '=' + v) for k, v in values.items()) + ' '
+    focus = '''import ctypes
+x = ctypes.CDLL('libX11.so.6')
+x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+x.XOpenDisplay.restype = ctypes.c_void_p
+x.XGetInputFocus.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int)]
+x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+display = x.XOpenDisplay(None)
+assert display, 'Cannot open the greeter display'
+window, revert = ctypes.c_ulong(), ctypes.c_int()
+x.XGetInputFocus(display, ctypes.byref(window), ctypes.byref(revert))
+x.XCloseDisplay(display)
+print(hex(window.value))
+'''
+    return guest.run('set -eu\nn=0\nwhile :; do\n' +
+                     'window=$(' + xenv + 'python3 -c ' + shlex.quote(focus) + ')\n' +
+                     'if ' + xenv + 'xprop -id "$window" _NET_WM_PID | grep -Eq ' +
+                     shlex.quote(' = ' + pid + '$') + ' && ' +
+                     xenv + 'xwininfo -id "$window" | grep -q "Map State: IsViewable"; then\n' +
+                     '    printf "SDDM window ready: %s\\n" "$window"; break\nfi\n' +
+                     'n=$((n+1)); test "$n" -le 90; sleep 1\ndone', timeout=120)
+
+
 def sddm_prompt(guest, output, suffix):
     wait_for_service(guest, 'sddm')
     guest.run('''set -eu
@@ -23,7 +58,7 @@ until pgrep -u sddm -f '^/usr/bin/sddm-greeter' >/dev/null; do
 done
 ! pgrep -u tester -x openbox
 ''', timeout=120)
-    time.sleep(3)
+    record(output, f'sddm-{suffix}-ready.log', wait_for_sddm_window(guest))
     guest.qmp.command('screendump', {'filename': str(output / f'sddm-{suffix}.ppm')})
 
 

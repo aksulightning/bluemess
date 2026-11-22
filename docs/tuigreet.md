@@ -50,13 +50,17 @@ the official Debian binary, not a claim that the reported greeter bugs are fixed
 [Debian #1153617](https://bugs.debian.org/1153617) reports the startup race in
 0.9.1-7; its status was pending when checked on 2026-11-21.
 
-The package workflow installs the official binary with signature verification
-and runs `build/check-tuigreet-pty.py`. It retains the delayed cursor replies,
-keyboard/session IPC and clean-exit checks; failures remain failures. The
+The package workflow configures `greetd` and verifies its `_greetd` account before
+installing the official tuigreet binary with signature verification. This avoids
+a missing-user warning from tuigreet's tmpfiles configuration in the isolated
+test container. It then runs `build/check-tuigreet-pty.py`, which reports the
+child's exit status and captured terminal output if Linux reports PTY closure
+as EIO. It retains the delayed cursor replies, keyboard/session IPC and clean-exit
+checks; failures remain failures. The
 greeter workflow exercises the real login-manager transitions. The snapshot
 workflow tests the agetty default and runs the full offline installation, desktop and three-boot memory
-suite on disposable QEMU disks. Neither replaces testing on the affected
-OptiPlex/Quadro T400. Actual outcomes are recorded in [status.md](status.md).
+suite on disposable QEMU disks. These checks do not establish physical AMDGPU
+or Libreboot compatibility. Actual outcomes are recorded in [status.md](status.md).
 
 References: [Debian changelog](https://metadata.ftp-master.debian.org/changelogs/main/t/tuigreet/tuigreet_0.9.1-7_changelog),
 [snapshot package history](https://snapshot.debian.org/package/tuigreet/).

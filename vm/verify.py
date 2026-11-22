@@ -566,14 +566,20 @@ runuser -u tester -- env DISPLAY=:0 XAUTHORITY=/home/tester/.Xauthority xset q |
 xpid=$(pgrep -u tester -x Xorg); test -n "$xpid"
 obpid=$(pgrep -u tester -x openbox); test -n "$obpid"
 tpid=$(pgrep -u tester -x xfce4-terminal); test -n "$tpid"
-# GTK/VTE creates the terminal process before it forks the interactive shell.
-# Wait for that child rather than treating process creation as shell readiness.
+# GTK may start image-loader helpers before VTE forks the interactive shell.
+# Find the actual ash child rather than assuming the first child is the shell.
 n=0
 while :; do
-    child=$(ps -o pid= --ppid "$tpid" | head -n 1 | tr -d ' ')
-    if [ -n "$child" ] && [ -e /proc/"$child"/exe ]; then
-        case "$(readlink /proc/"$child"/exe)" in */busybox) break ;; esac
-    fi
+    child=
+    for candidate in $(ps -o pid= --ppid "$tpid"); do
+        case "$(readlink /proc/"$candidate"/exe 2>/dev/null || :)" in */busybox)
+            if tr '\\000' ' ' < /proc/"$candidate"/cmdline | grep -Eq '(^|/|-| )ash( |$)'; then
+                child=$candidate
+                break
+            fi;;
+        esac
+    done
+    [ -z "$child" ] || break
     n=$((n+1)); test "$n" -le 30; sleep 1
 done
 case "$(readlink /proc/"$child"/exe)" in */busybox) ;; *) exit 1;; esac
